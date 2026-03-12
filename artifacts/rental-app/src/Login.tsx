@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from './lib/supabase';
+import barmelLogo from "@assets/Barmel_Logo-01_1773315387886.jpg";
 
 export default function Login({ onLoginSuccess }: { onLoginSuccess: (session: any) => void }) {
   const [email, setEmail] = useState('');
@@ -28,7 +29,10 @@ export default function Login({ onLoginSuccess }: { onLoginSuccess: (session: an
   return (
     <div className="min-h-screen bg-gray-200 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center text-blue-900 mb-6">Gestión de Rentas</h1>
+        <div className="flex flex-col items-center mb-6">
+          <img src={barmelLogo} alt="Barmel" className="h-20 w-20 rounded-2xl object-cover mb-3 shadow-md" />
+          <h1 className="text-2xl font-bold text-center text-blue-900">Gestión de Rentas</h1>
+        </div>
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm text-center">

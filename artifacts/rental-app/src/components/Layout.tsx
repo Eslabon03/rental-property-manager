@@ -3,6 +3,7 @@ import { Home, Calendar, CircleDollarSign, Settings, BarChart3 } from "lucide-re
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRole } from "@/lib/roles";
+import barmelLogo from "@assets/Barmel_Logo-01_1773315387886.jpg";
 
 const ALL_NAV_ITEMS = [
   { path: "/", label: "Inicio", icon: Home, adminOnly: true },
@@ -21,19 +22,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : ALL_NAV_ITEMS;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
+    <div className="min-h-screen bg-background flex flex-col font-sans relative">
+      <div
+        className="watermark-bg"
+        aria-hidden="true"
+        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}barmel-logo.png)` }}
+      />
+
       {/* Header */}
       <header className="fixed top-0 inset-x-0 h-16 bg-header text-header-foreground flex items-center px-5 z-50 shadow-md">
         <div className="max-w-5xl mx-auto w-full flex items-center gap-3">
-          <div className="h-8 w-8 bg-primary rounded-xl flex items-center justify-center shadow-inner">
-            <Home size={18} className="text-white" />
-          </div>
+          <img src={barmelLogo} alt="Barmel" className="h-9 w-9 rounded-xl object-cover shadow-inner" />
           <h1 className="text-xl font-display font-bold tracking-wide">Gestión de Rentas</h1>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 pt-16 pb-20 overflow-x-hidden relative">
+      <main className="flex-1 pt-16 pb-20 overflow-x-hidden relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={location}
