@@ -84,7 +84,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RoleProvider role={role}>
+      <RoleProvider role={role} email={userEmail}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             {role === "limpieza" ? <LimpiezaRouter /> : <AdminRouter />}

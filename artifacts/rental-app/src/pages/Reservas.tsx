@@ -4,8 +4,9 @@ import { useForm, Controller } from "react-hook-form";
 import { format, eachDayOfInterval, parseISO, isBefore, isAfter, isSameDay, startOfDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import Calendar from "react-calendar";
-import { Calendar as CalendarIcon, User, Phone, Radio, ChevronDown, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, User, Phone, Radio, ChevronDown, AlertCircle, UserCheck, Edit3 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useUserEmail } from "@/lib/roles";
 import { Button, Card, Badge, FAB, Modal, Input, Select } from "@/components/ui";
 
 type Propiedad = {
@@ -24,6 +25,9 @@ type Reserva = {
   celular_huesped: string | null;
   canal_renta: string | null;
   creado_en: string;
+  creado_por: string | null;
+  modificado_por: string | null;
+  modificado_en: string | null;
 };
 
 type ReservaFormData = {
@@ -98,7 +102,9 @@ function hasOverlap(inicio: string, fin: string, reservas: Reserva[]): boolean {
 
 export default function Reservas() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingReserva, setEditingReserva] = useState<Reserva | null>(null);
   const [selectedPropiedadId, setSelectedPropiedadId] = useState<number | null>(null);
+  const userEmail = useUserEmail();
   const { data: propiedades, isLoading: loadingProps } = useSupabasePropiedadesVacacionales();
   const { data: reservas, isLoading: loadingReservas } = useSupabaseReservas(selectedPropiedadId);
 
@@ -188,9 +194,17 @@ export default function Reservas() {
                       {r.nombre_huesped}
                     </div>
                   </div>
-                  {r.canal_renta && (
-                    <Badge variant="default" className="text-xs">{r.canal_renta}</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {r.canal_renta && (
+                      <Badge variant="default" className="text-xs">{r.canal_renta}</Badge>
+                    )}
+                    <button
+                      onClick={() => setEditingReserva(r)}
+                      className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5 flex items-center justify-between border border-border/50">
                   <div className="flex flex-col">
@@ -213,6 +227,24 @@ export default function Reservas() {
                     {r.celular_huesped}
                   </div>
                 )}
+                <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
+                  {r.creado_por && (
+                    <div className="flex items-center text-muted-foreground text-[11px]">
+                      <UserCheck size={11} className="mr-1 shrink-0" />
+                      <span>Creado por <span className="font-medium text-foreground/70">{r.creado_por}</span></span>
+                    </div>
+                  )}
+                  {r.modificado_por && (
+                    <div className="flex items-center text-muted-foreground text-[11px]">
+                      <Edit3 size={11} className="mr-1 shrink-0" />
+                      <span>Modificado por <span className="font-medium text-foreground/70">{r.modificado_por}</span>
+                        {r.modificado_en && (
+                          <span className="ml-1">({format(parseISO(r.modificado_en), "dd MMM yyyy HH:mm", { locale: es })})</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </Card>
             );
           })}
@@ -237,7 +269,17 @@ export default function Reservas() {
         onClose={() => setIsModalOpen(false)}
         propiedades={propiedades ?? []}
         defaultPropiedadId={selectedPropiedadId}
+        userEmail={userEmail}
       />
+      {editingReserva && (
+        <EditReservationModal
+          isOpen={!!editingReserva}
+          onClose={() => setEditingReserva(null)}
+          reserva={editingReserva}
+          propiedades={propiedades ?? []}
+          userEmail={userEmail}
+        />
+      )}
     </div>
   );
 }
@@ -247,11 +289,13 @@ function ReservationFormModal({
   onClose,
   propiedades,
   defaultPropiedadId,
+  userEmail,
 }: {
   isOpen: boolean;
   onClose: () => void;
   propiedades: Propiedad[];
   defaultPropiedadId: number | null;
+  userEmail: string;
 }) {
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, watch, setError, clearErrors, formState: { errors } } = useForm<ReservaFormData>({
@@ -280,6 +324,7 @@ function ReservationFormModal({
   });
 
   const [overlapError, setOverlapError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
   const { mutate, isPending } = useMutation({
     mutationFn: async (data: ReservaFormData) => {
@@ -294,6 +339,7 @@ function ReservationFormModal({
         canal_renta: data.canal_renta || null,
         fecha_inicio: data.fecha_inicio,
         fecha_fin: data.fecha_fin,
+        creado_por: userEmail,
       });
       if (error) throw error;
     },
@@ -301,18 +347,22 @@ function ReservationFormModal({
       queryClient.invalidateQueries({ queryKey: ["supabase-reservas"] });
       queryClient.invalidateQueries({ queryKey: ["supabase-reservas-form"] });
       setOverlapError(null);
+      setGeneralError(null);
       reset();
       onClose();
     },
     onError: (err: Error) => {
       if (err.message === "OVERLAP") {
         setOverlapError("Las fechas seleccionadas se solapan con una reserva existente. Por favor, elige otras fechas.");
+      } else {
+        setGeneralError("Error al guardar la reserva. Intenta de nuevo.");
       }
     },
   });
 
   const onSubmit = (data: ReservaFormData) => {
     setOverlapError(null);
+    setGeneralError(null);
 
     if (data.fecha_fin <= data.fecha_inicio) {
       setError("fecha_fin", { message: "La fecha de salida debe ser posterior a la de entrada" });
@@ -329,6 +379,7 @@ function ReservationFormModal({
 
   const handleClose = () => {
     setOverlapError(null);
+    setGeneralError(null);
     reset();
     onClose();
   };
@@ -336,6 +387,13 @@ function ReservationFormModal({
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Nueva Reserva">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+        {generalError && (
+          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+            <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 dark:text-red-300">{generalError}</p>
+          </div>
+        )}
 
         {overlapError && (
           <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
@@ -399,6 +457,186 @@ function ReservationFormModal({
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
           <Button type="submit" className="flex-1" disabled={isPending}>
             {isPending ? "Guardando..." : "Guardar Reserva"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditReservationModal({
+  isOpen,
+  onClose,
+  reserva,
+  propiedades,
+  userEmail,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  reserva: Reserva;
+  propiedades: Propiedad[];
+  userEmail: string;
+}) {
+  const queryClient = useQueryClient();
+  const { register, handleSubmit, reset, watch, setError, formState: { errors } } = useForm<ReservaFormData>({
+    defaultValues: {
+      propiedad_id: String(reserva.propiedad_id),
+      nombre_huesped: reserva.nombre_huesped,
+      celular_huesped: reserva.celular_huesped ?? "",
+      canal_renta: reserva.canal_renta ?? "",
+      fecha_inicio: reserva.fecha_inicio,
+      fecha_fin: reserva.fecha_fin,
+    },
+  });
+
+  const watchPropiedadId = watch("propiedad_id");
+  const editPropIdNum = watchPropiedadId ? Number(watchPropiedadId) : reserva.propiedad_id;
+
+  const [overlapError, setOverlapError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+
+  const { data: reservasPropiedad } = useQuery<Reserva[]>({
+    queryKey: ["supabase-reservas-edit", editPropIdNum],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reservas")
+        .select("*")
+        .eq("propiedad_id", editPropIdNum);
+      if (error) throw error;
+      return (data ?? []).filter(r => r.id !== reserva.id);
+    },
+    enabled: !!editPropIdNum,
+  });
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: async (data: ReservaFormData) => {
+      if (reservasPropiedad && hasOverlap(data.fecha_inicio, data.fecha_fin, reservasPropiedad)) {
+        throw new Error("OVERLAP");
+      }
+
+      const { error } = await supabase
+        .from("reservas")
+        .update({
+          propiedad_id: Number(data.propiedad_id),
+          nombre_huesped: data.nombre_huesped,
+          celular_huesped: data.celular_huesped || null,
+          canal_renta: data.canal_renta || null,
+          fecha_inicio: data.fecha_inicio,
+          fecha_fin: data.fecha_fin,
+          modificado_por: userEmail,
+          modificado_en: new Date().toISOString(),
+        })
+        .eq("id", reserva.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supabase-reservas"] });
+      queryClient.invalidateQueries({ queryKey: ["supabase-reservas-edit"] });
+      queryClient.invalidateQueries({ queryKey: ["supabase-reservas-form"] });
+      setOverlapError(null);
+      setGeneralError(null);
+      reset();
+      onClose();
+    },
+    onError: (err: Error) => {
+      if (err.message === "OVERLAP") {
+        setOverlapError("Las fechas seleccionadas se solapan con otra reserva existente.");
+      } else {
+        setGeneralError("Error al guardar los cambios. Intenta de nuevo.");
+      }
+    },
+  });
+
+  const onSubmit = (data: ReservaFormData) => {
+    setOverlapError(null);
+    setGeneralError(null);
+    if (data.fecha_fin <= data.fecha_inicio) {
+      setError("fecha_fin", { message: "La fecha de salida debe ser posterior a la de entrada" });
+      return;
+    }
+    mutate(data);
+  };
+
+  const handleClose = () => {
+    setOverlapError(null);
+    setGeneralError(null);
+    reset();
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Editar Reserva">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+        {generalError && (
+          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+            <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 dark:text-red-300">{generalError}</p>
+          </div>
+        )}
+
+        {overlapError && (
+          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+            <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 dark:text-red-300">{overlapError}</p>
+          </div>
+        )}
+
+        <Select
+          label="Propiedad"
+          {...register("propiedad_id", { required: "Selecciona una propiedad" })}
+          error={errors.propiedad_id?.message}
+        >
+          <option value="">Seleccionar propiedad...</option>
+          {propiedades.map(p => (
+            <option key={p.id} value={p.id}>{p.nombre} - {p.pais}</option>
+          ))}
+        </Select>
+
+        <Input
+          label="Nombre del huésped"
+          placeholder="Ej: Carlos Mendoza"
+          {...register("nombre_huesped", { required: "El nombre es requerido" })}
+          error={errors.nombre_huesped?.message}
+        />
+
+        <Input
+          label="Celular del huésped"
+          placeholder="Ej: +504 9999-1234"
+          {...register("celular_huesped")}
+        />
+
+        <Select
+          label="Canal de renta"
+          {...register("canal_renta")}
+        >
+          <option value="">Seleccionar canal...</option>
+          <option value="Airbnb">Airbnb</option>
+          <option value="Booking">Booking</option>
+          <option value="Directo">Directo</option>
+          <option value="Referido">Referido</option>
+          <option value="Otro">Otro</option>
+        </Select>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Fecha de entrada"
+            type="date"
+            {...register("fecha_inicio", { required: "Requerido" })}
+            error={errors.fecha_inicio?.message}
+          />
+          <Input
+            label="Fecha de salida"
+            type="date"
+            {...register("fecha_fin", { required: "Requerido" })}
+            error={errors.fecha_fin?.message}
+          />
+        </div>
+
+        <div className="pt-4 flex gap-3">
+          <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
+          <Button type="submit" className="flex-1" disabled={isPending}>
+            {isPending ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </div>
       </form>

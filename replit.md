@@ -60,7 +60,8 @@ artifacts-monorepo/
 - Config file: `artifacts/rental-app/src/lib/supabase.ts`
 - Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - The Inicio (Home) page reads properties directly from the Supabase `propiedades` table
-- The Reservas page reads/writes from the Supabase `reservas` table (columns: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_en)
+- The Reservas page reads/writes from the Supabase `reservas` table (columns: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_en, creado_por, modificado_por, modificado_en)
+- Reservations track which user created them (creado_por) and which user last modified them (modificado_por + modificado_en)
 - Calendar uses react-calendar to show occupied dates visually and block date selection
 - Dependencies: @supabase/supabase-js, react-calendar
 
