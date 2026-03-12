@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Calendar as CalendarIcon, Building2, User, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { Button, Card, Badge, FAB, Modal, Input, Select } from "@/components/ui";
 
-type ReservaRaw = {
+type PropiedadJoin = {
+  nombre: string;
+  tipo: string;
+  pais: string;
+};
+
+type ReservaConPropiedad = {
   id: number;
   propiedad_id: number;
   fecha_inicio: string;
@@ -15,15 +21,8 @@ type ReservaRaw = {
   nombre_huesped: string;
   celular_huesped: string | null;
   canal_renta: string | null;
-  propiedades: {
-    nombre: string;
-    tipo: string;
-    pais: string;
-  }[];
-};
-
-type ReservaConPropiedad = Omit<ReservaRaw, "propiedades"> & {
-  propiedades: { nombre: string; tipo: string; pais: string } | null;
+  creado_por: string | null;
+  propiedades: PropiedadJoin | null;
 };
 
 type PropertyFormData = {
@@ -41,14 +40,20 @@ function useReservasProximas() {
       const today = startOfDay(new Date()).toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("reservas")
-        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, propiedades(nombre, tipo, pais)")
+        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_por, propiedades(nombre, tipo, pais)")
         .gte("fecha_fin", today)
         .order("fecha_inicio", { ascending: true });
       if (error) throw error;
-      const raw = (data ?? []) as ReservaRaw[];
-      return raw.map(r => ({
-        ...r,
-        propiedades: r.propiedades?.[0] ?? null,
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        propiedad_id: r.propiedad_id,
+        fecha_inicio: r.fecha_inicio,
+        fecha_fin: r.fecha_fin,
+        nombre_huesped: r.nombre_huesped,
+        celular_huesped: r.celular_huesped,
+        canal_renta: r.canal_renta,
+        creado_por: r.creado_por,
+        propiedades: Array.isArray(r.propiedades) ? r.propiedades[0] ?? null : r.propiedades ?? null,
       }));
     },
   });
@@ -156,12 +161,20 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
           </div>
         </div>
 
-        {reserva.canal_renta && (
-          <div className="flex items-center text-muted-foreground text-xs">
-            <Clock size={12} className="mr-1 shrink-0" />
-            <span>{reserva.canal_renta}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {reserva.canal_renta && (
+            <div className="flex items-center text-muted-foreground text-xs">
+              <Clock size={12} className="mr-1 shrink-0" />
+              <span>{reserva.canal_renta}</span>
+            </div>
+          )}
+          {reserva.creado_por && (
+            <div className="flex items-center text-muted-foreground text-xs">
+              <UserCheck size={12} className="mr-1 shrink-0" />
+              <span>{reserva.creado_por}</span>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );
