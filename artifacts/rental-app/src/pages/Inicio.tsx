@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck } from "lucide-react";
+import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck, Warehouse, ArrowLeft, MapPin, Home, Briefcase, ToggleLeft, ToggleRight } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,15 @@ type PropiedadJoin = {
   nombre: string;
   tipo: string;
   pais: string;
+};
+
+type Propiedad = {
+  id: number;
+  nombre: string;
+  tipo: string;
+  pais: string;
+  renta_fija_lps: number | null;
+  esta_alquilada: boolean;
 };
 
 type ReservaConPropiedad = {
@@ -59,6 +68,20 @@ function useReservasProximas() {
   });
 }
 
+function usePropiedades() {
+  return useQuery<Propiedad[]>({
+    queryKey: ["supabase-propiedades"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("propiedades")
+        .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada")
+        .order("nombre");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 function getReservationStatus(fechaInicio: string, fechaFin: string): { label: string; variant: "success" | "warning" | "default" } {
   const today = startOfDay(new Date());
   const start = startOfDay(parseISO(fechaInicio));
@@ -75,7 +98,12 @@ function getReservationStatus(fechaInicio: string, fechaFin: string): { label: s
 
 export default function Inicio() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showInventario, setShowInventario] = useState(false);
   const { data: reservas, isLoading, isError, refetch } = useReservasProximas();
+
+  if (showInventario) {
+    return <InventarioPropiedades onBack={() => setShowInventario(false)} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -83,6 +111,20 @@ export default function Inicio() {
         <h2 className="text-2xl font-display font-bold text-foreground">Reservas Próximas</h2>
         <p className="text-muted-foreground text-sm mt-1">Propiedades con huéspedes por llegar o en estadía</p>
       </div>
+
+      <button
+        onClick={() => setShowInventario(true)}
+        className="w-full flex items-center gap-3 p-4 bg-card rounded-2xl border border-border hover:border-primary/30 hover:bg-primary/5 transition-all shadow-sm group"
+      >
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+          <Warehouse size={20} className="text-primary" />
+        </div>
+        <div className="text-left flex-1">
+          <span className="text-sm font-bold text-foreground">Inventario de Propiedades</span>
+          <p className="text-xs text-muted-foreground">Ver todas las propiedades vacacionales y mensuales</p>
+        </div>
+        <ArrowLeft size={16} className="text-muted-foreground rotate-180" />
+      </button>
 
       {isError ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4 bg-card rounded-3xl border border-dashed border-destructive/30">
@@ -118,6 +160,116 @@ export default function Inicio() {
       <FAB onClick={() => setIsModalOpen(true)} />
       <PropertyFormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
+  );
+}
+
+function InventarioPropiedades({ onBack }: { onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: propiedades, isLoading } = usePropiedades();
+
+  const vacacionales = useMemo(() => propiedades?.filter(p => p.tipo === "vacacional") ?? [], [propiedades]);
+  const mensuales = useMemo(() => propiedades?.filter(p => p.tipo === "mensual") ?? [], [propiedades]);
+
+  const toggleAlquilada = async (id: number, value: boolean) => {
+    await supabase.from("propiedades").update({ esta_alquilada: value }).eq("id", id);
+    queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="h-10 w-10 rounded-xl bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shrink-0"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div>
+          <h2 className="text-2xl font-display font-bold text-foreground">Inventario de Propiedades</h2>
+          <p className="text-muted-foreground text-sm mt-0.5">{propiedades?.length ?? 0} propiedades registradas</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-20 bg-card rounded-2xl animate-pulse border border-border"></div>
+          ))}
+        </div>
+      ) : (
+        <>
+          {vacacionales.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Home size={16} className="text-primary" />
+                <h3 className="text-lg font-bold text-foreground">Vacacionales</h3>
+                <Badge variant="default" className="text-xs ml-auto">{vacacionales.length}</Badge>
+              </div>
+              {vacacionales.map(p => (
+                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} />
+              ))}
+            </div>
+          )}
+
+          {mensuales.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Briefcase size={16} className="text-primary" />
+                <h3 className="text-lg font-bold text-foreground">Mensuales</h3>
+                <Badge variant="default" className="text-xs ml-auto">{mensuales.length}</Badge>
+              </div>
+              {mensuales.map(p => (
+                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} showRenta />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PropiedadCard({ propiedad, onToggle, showRenta }: { propiedad: Propiedad; onToggle: (id: number, val: boolean) => void; showRenta?: boolean }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className={`h-1 w-full ${propiedad.esta_alquilada ? "bg-emerald-500" : "bg-slate-300"}`} />
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm font-bold leading-tight truncate">{propiedad.nombre}</h4>
+            <div className="flex items-center text-muted-foreground text-xs mt-1 gap-2">
+              <div className="flex items-center">
+                <MapPin size={12} className="mr-0.5" />
+                {propiedad.pais}
+              </div>
+              {showRenta && propiedad.renta_fija_lps && (
+                <span className="font-semibold text-foreground/70">L {propiedad.renta_fija_lps.toLocaleString("es-HN")}</span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => onToggle(propiedad.id, !propiedad.esta_alquilada)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+              propiedad.esta_alquilada
+                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            {propiedad.esta_alquilada ? (
+              <>
+                <ToggleRight size={14} />
+                Alquilada
+              </>
+            ) : (
+              <>
+                <ToggleLeft size={14} />
+                Disponible
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
