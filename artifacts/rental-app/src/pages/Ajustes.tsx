@@ -1,7 +1,16 @@
+import { useState } from "react";
 import { User, Bell, Shield, LogOut, ChevronRight, Moon } from "lucide-react";
 import { Card } from "@/components/ui";
+import { supabase } from "@/lib/supabase";
 
 export default function Ajustes() {
+  const [cerrando, setCerrando] = useState(false);
+
+  const cerrarSesion = async () => {
+    setCerrando(true);
+    await supabase.auth.signOut();
+    setCerrando(false);
+  };
   const settingsGroups = [
     {
       title: "Cuenta",
@@ -66,9 +75,13 @@ export default function Ajustes() {
       </div>
 
       <div className="pt-4 pb-8">
-        <button className="w-full flex items-center justify-center gap-2 py-4 text-destructive font-semibold bg-destructive/10 rounded-2xl hover:bg-destructive/20 active:scale-[0.98] transition-all">
+        <button
+          onClick={cerrarSesion}
+          disabled={cerrando}
+          className="w-full flex items-center justify-center gap-2 py-4 text-destructive font-semibold bg-destructive/10 rounded-2xl hover:bg-destructive/20 active:scale-[0.98] transition-all disabled:opacity-50"
+        >
           <LogOut size={20} />
-          Cerrar Sesión
+          {cerrando ? "Cerrando..." : "Cerrar Sesión"}
         </button>
         <p className="text-center text-xs text-muted-foreground mt-6">Versión 1.0.0 (Build 42)</p>
       </div>
