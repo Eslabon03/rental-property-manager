@@ -51,6 +51,9 @@ artifacts-monorepo/
 - Config file: `artifacts/rental-app/src/lib/supabase.ts`
 - Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - The Inicio (Home) page reads properties directly from the Supabase `propiedades` table
+- The Reservas page reads/writes from the Supabase `reservas` table (columns: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_en)
+- Calendar uses react-calendar to show occupied dates visually and block date selection
+- Dependencies: @supabase/supabase-js, react-calendar
 
 ## API Endpoints
 
@@ -66,7 +69,7 @@ artifacts-monorepo/
 ## Frontend Pages
 
 - **Inicio** (`/`) - Property card grid from Supabase `propiedades` table, with tipo badges and country info
-- **Reservas** (`/reservas`) - Reservation list with guest details, dates, amounts
+- **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list, and form to create reservations via Supabase `reservas` table with overlap validation
 - **Gastos** (`/gastos`) - Expense list with categories, monthly total summary
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
 

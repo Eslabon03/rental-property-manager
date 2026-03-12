@@ -82,3 +82,100 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+
+.calendar-wrapper .react-calendar {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+}
+
+.calendar-wrapper .react-calendar__navigation {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.calendar-wrapper .react-calendar__navigation button {
+  min-width: 36px;
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.calendar-wrapper .react-calendar__navigation button:hover {
+  background: hsl(var(--accent));
+}
+
+.calendar-wrapper .react-calendar__navigation button:disabled {
+  opacity: 0.3;
+}
+
+.calendar-wrapper .react-calendar__month-view__weekdays {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 0.25rem;
+}
+
+.calendar-wrapper .react-calendar__month-view__weekdays abbr {
+  text-decoration: none;
+}
+
+.calendar-wrapper .react-calendar__tile {
+  background: none;
+  border: none;
+  padding: 0.6rem 0.25rem;
+  font-size: 0.8rem;
+  border-radius: 0.5rem;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-wrapper .react-calendar__tile:hover {
+  background: hsl(var(--accent));
+}
+
+.calendar-wrapper .react-calendar__tile--now {
+  background: hsl(var(--primary) / 0.1);
+  font-weight: 700;
+  color: hsl(var(--primary));
+}
+
+.calendar-wrapper .react-calendar__tile--active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.calendar-wrapper .react-calendar__tile.occupied-date {
+  background: hsl(0 70% 60% / 0.2);
+  color: hsl(0 70% 45%);
+  font-weight: 600;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.calendar-wrapper .react-calendar__tile.occupied-date:hover {
+  background: hsl(0 70% 60% / 0.25);
+}
+
+.calendar-wrapper .react-calendar__tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendar-wrapper .react-calendar__month-view__days__day--neighboringMonth {
+  opacity: 0.3;
+}
