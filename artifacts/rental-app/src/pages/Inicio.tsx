@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck, Warehouse, ArrowLeft, MapPin, Home, Briefcase, ToggleLeft, ToggleRight, Link2, FileText, RefreshCw, Check, Loader2, MessageCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck, Warehouse, ArrowLeft, MapPin, Home, Briefcase, ToggleLeft, ToggleRight, Link2, FileText, RefreshCw, Check, Loader2, MessageCircle, Upload, ExternalLink, DollarSign, Trash2 } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +23,7 @@ type Propiedad = {
   esta_alquilada: boolean;
   ical_url: string | null;
   instrucciones: string | null;
+  contrato_url: string | null;
 };
 
 type ReservaConPropiedad = {
@@ -79,7 +80,7 @@ function usePropiedades() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("propiedades")
-        .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada, ical_url, instrucciones")
+        .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada, ical_url, instrucciones, contrato_url")
         .order("nombre");
       if (error) throw error;
       return data ?? [];
@@ -250,10 +251,13 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
   const [expanded, setExpanded] = useState(false);
   const [icalUrl, setIcalUrl] = useState(propiedad.ical_url ?? "");
   const [instrucciones, setInstrucciones] = useState(propiedad.instrucciones ?? "");
+  const [rentaFija, setRentaFija] = useState(propiedad.renta_fija_lps?.toString() ?? "");
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const handleSave = async (field: string, value: string) => {
@@ -266,6 +270,90 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
       setSavedField(null);
     }
     setSavingField(null);
+  };
+
+  const handleSaveRenta = async () => {
+    if (rentaFija && (isNaN(parseFloat(rentaFija)) || parseFloat(rentaFija) < 0)) {
+      setSavedField("renta_error");
+      setTimeout(() => setSavedField(null), 3000);
+      return;
+    }
+    setSavingField("renta_fija_lps");
+    try {
+      const val = rentaFija ? parseFloat(rentaFija) : null;
+      const { error } = await supabase
+        .from("propiedades")
+        .update({ renta_fija_lps: val })
+        .eq("id", propiedad.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
+      setSavedField("renta_fija_lps");
+      setTimeout(() => setSavedField(null), 2000);
+    } catch {
+      setSavedField("renta_error");
+      setTimeout(() => setSavedField(null), 3000);
+    }
+    setSavingField(null);
+  };
+
+  const handleUploadContrato = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadMsg(null);
+    try {
+      const ext = file.name.split(".").pop() || "pdf";
+      const filePath = `propiedad-${propiedad.id}/contrato-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("contratos")
+        .upload(filePath, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase
+        .from("propiedades")
+        .update({ contrato_url: filePath })
+        .eq("id", propiedad.id);
+      if (dbErr) throw dbErr;
+      queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
+      setUploadMsg("Contrato subido");
+      setTimeout(() => setUploadMsg(null), 3000);
+    } catch (err: any) {
+      setUploadMsg(err?.message || "Error al subir");
+      setTimeout(() => setUploadMsg(null), 4000);
+    }
+    setUploading(false);
+    e.target.value = "";
+  };
+
+  const handleDeleteContrato = async () => {
+    setSavingField("contrato_url");
+    try {
+      if (propiedad.contrato_url) {
+        await supabase.storage
+          .from("contratos")
+          .remove([propiedad.contrato_url]);
+      }
+      const { error } = await supabase
+        .from("propiedades")
+        .update({ contrato_url: null })
+        .eq("id", propiedad.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
+      setSavedField("contrato_url");
+      setTimeout(() => setSavedField(null), 2000);
+    } catch {
+      setUploadMsg("Error al eliminar");
+      setTimeout(() => setUploadMsg(null), 3000);
+    }
+    setSavingField(null);
+  };
+
+  const getContratoUrl = () => {
+    if (!propiedad.contrato_url) return "";
+    if (propiedad.contrato_url.startsWith("http")) return propiedad.contrato_url;
+    const { data } = supabase.storage
+      .from("contratos")
+      .getPublicUrl(propiedad.contrato_url);
+    return data.publicUrl;
   };
 
   const handleSync = async () => {
@@ -290,6 +378,7 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
   };
 
   const isVacacional = propiedad.tipo === "vacacional";
+  const isMensual = propiedad.tipo === "mensual";
 
   return (
     <Card className="overflow-hidden">
@@ -309,6 +398,11 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
               {isVacacional && propiedad.ical_url && (
                 <span className="text-primary">
                   <Link2 size={12} />
+                </span>
+              )}
+              {isMensual && propiedad.contrato_url && (
+                <span className="text-emerald-600">
+                  <FileText size={12} />
                 </span>
               )}
             </div>
@@ -337,6 +431,33 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
 
         {expanded && (
           <div className="mt-3 pt-3 border-t border-border space-y-3">
+            {isMensual && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
+                  <DollarSign size={12} />
+                  Renta Mensual (Lempiras)
+                </label>
+                <input
+                  type="number"
+                  className="w-full text-sm p-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Ej: 15000"
+                  value={rentaFija}
+                  onChange={e => setRentaFija(e.target.value)}
+                />
+                <button
+                  onClick={handleSaveRenta}
+                  disabled={savingField === "renta_fija_lps"}
+                  className="mt-1 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1"
+                >
+                  {savingField === "renta_fija_lps" ? <Loader2 size={12} className="animate-spin" /> : savedField === "renta_fija_lps" ? <Check size={12} /> : null}
+                  {savedField === "renta_fija_lps" ? "Guardado" : savedField === "renta_error" ? "" : savingField === "renta_fija_lps" ? "Guardando..." : "Guardar precio"}
+                </button>
+                {savedField === "renta_error" && (
+                  <p className="text-xs text-red-500 mt-1">Ingrese un monto válido</p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
                 <FileText size={12} />
@@ -358,6 +479,52 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
                 {savedField === "instrucciones" ? "Guardado" : savingField === "instrucciones" ? "Guardando..." : "Guardar instrucciones"}
               </button>
             </div>
+
+            {isMensual && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
+                  <Upload size={12} />
+                  Contrato de Arrendamiento
+                </label>
+                {propiedad.contrato_url ? (
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={getContratoUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 rounded-lg px-3 py-2"
+                    >
+                      <ExternalLink size={12} />
+                      Ver contrato
+                    </a>
+                    <button
+                      onClick={handleDeleteContrato}
+                      disabled={savingField === "contrato_url"}
+                      className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                    >
+                      <Trash2 size={12} />
+                      Eliminar
+                    </button>
+                    <label className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer bg-slate-100 rounded-lg px-3 py-2">
+                      <Upload size={12} />
+                      Cambiar
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden" onChange={handleUploadContrato} />
+                    </label>
+                  </div>
+                ) : (
+                  <label className={`flex items-center gap-2 text-xs font-semibold cursor-pointer border-2 border-dashed border-border rounded-xl px-4 py-3 hover:border-primary/50 hover:bg-primary/5 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} className="text-muted-foreground" />}
+                    <span className="text-muted-foreground">
+                      {uploading ? "Subiendo..." : "Subir contrato (PDF, imagen o Word)"}
+                    </span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden" onChange={handleUploadContrato} />
+                  </label>
+                )}
+                {uploadMsg && (
+                  <p className="text-xs text-muted-foreground mt-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg px-2 py-1">{uploadMsg}</p>
+                )}
+              </div>
+            )}
 
             {isVacacional && (
               <div>
