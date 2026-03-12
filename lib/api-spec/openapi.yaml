@@ -1,15 +1,20 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Property rental management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: properties
+    description: Property operations
+  - name: reservations
+    description: Reservation operations
+  - name: expenses
+    description: Expense operations
 paths:
   /healthz:
     get:
@@ -24,6 +29,131 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List all properties
+      responses:
+        "200":
+          description: List of properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+    post:
+      operationId: createProperty
+      tags: [properties]
+      summary: Create a new property
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProperty"
+      responses:
+        "201":
+          description: Property created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+  /properties/{id}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      summary: Get a property by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Property details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Property not found
+  /reservations:
+    get:
+      operationId: listReservations
+      tags: [reservations]
+      summary: List all reservations
+      parameters:
+        - name: propertyId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+    post:
+      operationId: createReservation
+      tags: [reservations]
+      summary: Create a new reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservation"
+      responses:
+        "201":
+          description: Reservation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+  /expenses:
+    get:
+      operationId: listExpenses
+      tags: [expenses]
+      summary: List all expenses
+      parameters:
+        - name: propertyId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create a new expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpense"
+      responses:
+        "201":
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +163,180 @@ components:
           type: string
       required:
         - status
-
+    Property:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        type:
+          type: string
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        monthlyRent:
+          type: number
+        status:
+          type: string
+          enum: [available, occupied, maintenance]
+        imageUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - address
+        - type
+        - bedrooms
+        - bathrooms
+        - monthlyRent
+        - status
+        - createdAt
+    CreateProperty:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        type:
+          type: string
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        monthlyRent:
+          type: number
+        status:
+          type: string
+          enum: [available, occupied, maintenance]
+        imageUrl:
+          type: string
+          nullable: true
+      required:
+        - name
+        - address
+        - type
+        - bedrooms
+        - bathrooms
+        - monthlyRent
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        guestName:
+          type: string
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+        status:
+          type: string
+          enum: [confirmed, pending, cancelled, completed]
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        propertyName:
+          type: string
+      required:
+        - id
+        - propertyId
+        - guestName
+        - checkIn
+        - checkOut
+        - totalAmount
+        - status
+        - createdAt
+    CreateReservation:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        guestName:
+          type: string
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+        status:
+          type: string
+          enum: [confirmed, pending, cancelled, completed]
+        notes:
+          type: string
+          nullable: true
+      required:
+        - propertyId
+        - guestName
+        - checkIn
+        - checkOut
+        - totalAmount
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertyId:
+          type: integer
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+        propertyName:
+          type: string
+      required:
+        - id
+        - propertyId
+        - category
+        - description
+        - amount
+        - date
+        - createdAt
+    CreateExpense:
+      type: object
+      properties:
+        propertyId:
+          type: integer
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+      required:
+        - propertyId
+        - category
+        - description
+        - amount
+        - date

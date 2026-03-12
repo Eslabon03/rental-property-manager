@@ -1,0 +1,12 @@
+packages:
+  "framer-motion": "Smooth page transitions and micro-interactions"
+  "date-fns": "Date formatting for reservations and expenses"
+  "react-hook-form": "Form state management"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes"
+
+images: []
+
+notes:
+  - "Using generated React Query hooks from @workspace/api-client-react"
+  - "App is styled as a mobile-first PWA with a fixed header and bottom tab navigation"

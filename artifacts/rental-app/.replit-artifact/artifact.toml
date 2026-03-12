@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Gestión de Rentas"
+version = "1.0.0"
+id = "artifacts/rental-app"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 18593
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/rental-app run dev"
+
+[services.env]
+PORT = "18593"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/rental-app", "run", "build"]
+publicDir = "artifacts/rental-app/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
