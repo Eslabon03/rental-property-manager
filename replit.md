@@ -52,6 +52,7 @@ artifacts-monorepo/
 - Context: `artifacts/rental-app/src/lib/roles.tsx` (RoleProvider, useRole, getRoleFromEmail)
 - Admin: full access to all 5 tabs (Inicio, Reservas, Gastos, Reportes, Ajustes)
 - Limpieza: only Gastos and Ajustes; all other routes redirect to /gastos
+- Limpieza users can only see/work with properties matching "Roatán" or "Las Palmas" (filtered via `filterPropiedadesPorRol`)
 - Navigation items filtered in Layout.tsx based on role
 - Routes protected in App.tsx with separate AdminRouter/LimpiezaRouter
 

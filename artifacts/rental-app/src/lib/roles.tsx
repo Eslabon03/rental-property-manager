@@ -7,6 +7,17 @@ export function getRoleFromEmail(email: string | undefined | null): UserRole {
   return email.toLowerCase().includes("limpieza") ? "limpieza" : "admin";
 }
 
+export function filterPropiedadesPorRol<T extends { nombre: string }>(
+  propiedades: T[],
+  role: UserRole
+): T[] {
+  if (role !== "limpieza") return propiedades;
+  return propiedades.filter(p => {
+    const n = p.nombre.toLowerCase();
+    return n.includes("roatán") || n.includes("roatan") || n.includes("las palmas");
+  });
+}
+
 const RoleContext = createContext<UserRole>("admin");
 
 export function RoleProvider({ role, children }: { role: UserRole; children: React.ReactNode }) {

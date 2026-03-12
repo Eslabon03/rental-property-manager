@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { Zap, Droplets, Sparkles, Wrench, HelpCircle, Receipt, ChevronDown, Landmark, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button, Card, FAB, Modal, Input, Select } from "@/components/ui";
+import { useRole, filterPropiedadesPorRol } from "@/lib/roles";
 
 type Propiedad = {
   id: number;
@@ -77,8 +78,26 @@ function useSupabaseGastos(propiedadId: number | null) {
 export default function Gastos() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterPropiedadId, setFilterPropiedadId] = useState<number | null>(null);
-  const { data: propiedades } = useSupabasePropiedades();
-  const { data: gastos, isLoading, isError } = useSupabaseGastos(filterPropiedadId);
+  const role = useRole();
+  const { data: propiedadesRaw } = useSupabasePropiedades();
+  const { data: gastosRaw, isLoading, isError } = useSupabaseGastos(filterPropiedadId);
+
+  const propiedades = useMemo(
+    () => filterPropiedadesPorRol(propiedadesRaw ?? [], role),
+    [propiedadesRaw, role]
+  );
+
+  const allowedIds = useMemo(
+    () => new Set(propiedades.map(p => p.id)),
+    [propiedades]
+  );
+
+  const gastos = useMemo(
+    () => role === "limpieza"
+      ? (gastosRaw ?? []).filter(g => allowedIds.has(g.propiedad_id))
+      : gastosRaw ?? [],
+    [gastosRaw, role, allowedIds]
+  );
 
   const totalMes = useMemo(() => {
     if (!gastos) return 0;
@@ -94,7 +113,7 @@ export default function Gastos() {
   }, [gastos]);
 
   const getPropiedadNombre = (propiedadId: number) => {
-    return propiedades?.find(p => p.id === propiedadId)?.nombre ?? `Propiedad #${propiedadId}`;
+    return propiedades.find(p => p.id === propiedadId)?.nombre ?? `Propiedad #${propiedadId}`;
   };
 
   return (
@@ -107,7 +126,7 @@ export default function Gastos() {
       <div className="bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-5 text-primary-foreground shadow-lg">
         <p className="text-sm opacity-90 font-medium">Total Gastos (Este mes)</p>
         <p className="text-3xl font-bold mt-1">L {totalMes.toLocaleString("es-HN", { minimumFractionDigits: 2 })}</p>
-        {filterPropiedadId && propiedades && (
+        {filterPropiedadId && propiedades.length > 0 && (
           <p className="text-xs mt-2 opacity-80">
             {getPropiedadNombre(filterPropiedadId)}
           </p>
@@ -123,7 +142,7 @@ export default function Gastos() {
             onChange={(e) => setFilterPropiedadId(e.target.value ? Number(e.target.value) : null)}
           >
             <option value="">Todas las propiedades</option>
-            {propiedades?.map(p => (
+            {propiedades.map(p => (
               <option key={p.id} value={p.id}>{p.nombre} - {p.pais}</option>
             ))}
           </select>
@@ -209,7 +228,7 @@ export default function Gastos() {
       <GastoFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        propiedades={propiedades ?? []}
+        propiedades={propiedades}
         defaultPropiedadId={filterPropiedadId}
       />
     </div>
