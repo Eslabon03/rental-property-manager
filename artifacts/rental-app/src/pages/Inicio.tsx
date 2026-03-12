@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck, Warehouse, ArrowLeft, MapPin, Home, Briefcase, ToggleLeft, ToggleRight } from "lucide-react";
+import { Calendar as CalendarIcon, Building2, User, Clock, UserCheck, Warehouse, ArrowLeft, MapPin, Home, Briefcase, ToggleLeft, ToggleRight, Link2, FileText, RefreshCw, Check, Loader2, MessageCircle } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,7 @@ type PropiedadJoin = {
   nombre: string;
   tipo: string;
   pais: string;
+  instrucciones: string | null;
 };
 
 type Propiedad = {
@@ -20,6 +21,8 @@ type Propiedad = {
   pais: string;
   renta_fija_lps: number | null;
   esta_alquilada: boolean;
+  ical_url: string | null;
+  instrucciones: string | null;
 };
 
 type ReservaConPropiedad = {
@@ -31,6 +34,7 @@ type ReservaConPropiedad = {
   celular_huesped: string | null;
   canal_renta: string | null;
   creado_por: string | null;
+  origen: string | null;
   propiedades: PropiedadJoin | null;
 };
 
@@ -49,7 +53,7 @@ function useReservasProximas() {
       const today = startOfDay(new Date()).toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("reservas")
-        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_por, propiedades(nombre, tipo, pais)")
+        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_por, origen, propiedades(nombre, tipo, pais, instrucciones)")
         .gte("fecha_fin", today)
         .order("fecha_inicio", { ascending: true });
       if (error) throw error;
@@ -62,6 +66,7 @@ function useReservasProximas() {
         celular_huesped: r.celular_huesped,
         canal_renta: r.canal_renta,
         creado_por: r.creado_por,
+        origen: r.origen ?? null,
         propiedades: Array.isArray(r.propiedades) ? r.propiedades[0] ?? null : r.propiedades ?? null,
       }));
     },
@@ -74,7 +79,7 @@ function usePropiedades() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("propiedades")
-        .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada")
+        .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada, ical_url, instrucciones")
         .order("nombre");
       if (error) throw error;
       return data ?? [];
@@ -171,7 +176,14 @@ function InventarioPropiedades({ onBack }: { onBack: () => void }) {
   const mensuales = useMemo(() => propiedades?.filter(p => p.tipo === "mensual") ?? [], [propiedades]);
 
   const toggleAlquilada = async (id: number, value: boolean) => {
-    await supabase.from("propiedades").update({ esta_alquilada: value }).eq("id", id);
+    const { error } = await supabase.from("propiedades").update({ esta_alquilada: value }).eq("id", id);
+    if (error) { console.error("Error updating property:", error); return; }
+    queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
+  };
+
+  const saveField = async (id: number, field: string, value: string | null) => {
+    const { error } = await supabase.from("propiedades").update({ [field]: value }).eq("id", id);
+    if (error) throw error;
     queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
   };
 
@@ -206,7 +218,7 @@ function InventarioPropiedades({ onBack }: { onBack: () => void }) {
                 <Badge variant="default" className="text-xs ml-auto">{vacacionales.length}</Badge>
               </div>
               {vacacionales.map(p => (
-                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} />
+                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} onSaveField={saveField} />
               ))}
             </div>
           )}
@@ -219,7 +231,7 @@ function InventarioPropiedades({ onBack }: { onBack: () => void }) {
                 <Badge variant="default" className="text-xs ml-auto">{mensuales.length}</Badge>
               </div>
               {mensuales.map(p => (
-                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} showRenta />
+                <PropiedadCard key={p.id} propiedad={p} onToggle={toggleAlquilada} onSaveField={saveField} showRenta />
               ))}
             </div>
           )}
@@ -229,13 +241,62 @@ function InventarioPropiedades({ onBack }: { onBack: () => void }) {
   );
 }
 
-function PropiedadCard({ propiedad, onToggle, showRenta }: { propiedad: Propiedad; onToggle: (id: number, val: boolean) => void; showRenta?: boolean }) {
+function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
+  propiedad: Propiedad;
+  onToggle: (id: number, val: boolean) => void;
+  onSaveField: (id: number, field: string, value: string | null) => Promise<void>;
+  showRenta?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [icalUrl, setIcalUrl] = useState(propiedad.ical_url ?? "");
+  const [instrucciones, setInstrucciones] = useState(propiedad.instrucciones ?? "");
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [savedField, setSavedField] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleSave = async (field: string, value: string) => {
+    setSavingField(field);
+    try {
+      await onSaveField(propiedad.id, field, value || null);
+      setSavedField(field);
+      setTimeout(() => setSavedField(null), 2000);
+    } catch {
+      setSavedField(null);
+    }
+    setSavingField(null);
+  };
+
+  const handleSync = async () => {
+    if (!propiedad.ical_url) return;
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const base = import.meta.env.BASE_URL;
+      const resp = await fetch(`${base}api/sync-ical/${propiedad.id}`, { method: "POST" });
+      const data = await resp.json();
+      if (resp.ok) {
+        setSyncMsg(`${data.synced} nueva(s) reserva(s) sincronizada(s)`);
+        queryClient.invalidateQueries({ queryKey: ["reservas-proximas"] });
+      } else {
+        setSyncMsg(data.error || "Error al sincronizar");
+      }
+    } catch {
+      setSyncMsg("Error de conexión");
+    }
+    setSyncing(false);
+    setTimeout(() => setSyncMsg(null), 4000);
+  };
+
+  const isVacacional = propiedad.tipo === "vacacional";
+
   return (
     <Card className="overflow-hidden">
       <div className={`h-1 w-full ${propiedad.esta_alquilada ? "bg-emerald-500" : "bg-slate-300"}`} />
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setExpanded(!expanded)}>
             <h4 className="text-sm font-bold leading-tight truncate">{propiedad.nombre}</h4>
             <div className="flex items-center text-muted-foreground text-xs mt-1 gap-2">
               <div className="flex items-center">
@@ -244,6 +305,11 @@ function PropiedadCard({ propiedad, onToggle, showRenta }: { propiedad: Propieda
               </div>
               {showRenta && propiedad.renta_fija_lps && (
                 <span className="font-semibold text-foreground/70">L {propiedad.renta_fija_lps.toLocaleString("es-HN")}</span>
+              )}
+              {isVacacional && propiedad.ical_url && (
+                <span className="text-primary">
+                  <Link2 size={12} />
+                </span>
               )}
             </div>
           </div>
@@ -268,6 +334,71 @@ function PropiedadCard({ propiedad, onToggle, showRenta }: { propiedad: Propieda
             )}
           </button>
         </div>
+
+        {expanded && (
+          <div className="mt-3 pt-3 border-t border-border space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
+                <FileText size={12} />
+                Instrucciones
+              </label>
+              <textarea
+                className="w-full text-sm p-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                rows={3}
+                placeholder="Instrucciones para el huésped..."
+                value={instrucciones}
+                onChange={e => setInstrucciones(e.target.value)}
+              />
+              <button
+                onClick={() => handleSave("instrucciones", instrucciones)}
+                disabled={savingField === "instrucciones"}
+                className="mt-1 text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1"
+              >
+                {savingField === "instrucciones" ? <Loader2 size={12} className="animate-spin" /> : savedField === "instrucciones" ? <Check size={12} /> : null}
+                {savedField === "instrucciones" ? "Guardado" : savingField === "instrucciones" ? "Guardando..." : "Guardar instrucciones"}
+              </button>
+            </div>
+
+            {isVacacional && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
+                  <Link2 size={12} />
+                  URL iCal (Airbnb / Expedia)
+                </label>
+                <input
+                  type="url"
+                  className="w-full text-sm p-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="https://www.airbnb.com/calendar/ical/..."
+                  value={icalUrl}
+                  onChange={e => setIcalUrl(e.target.value)}
+                />
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => handleSave("ical_url", icalUrl)}
+                    disabled={savingField === "ical_url"}
+                    className="text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1"
+                  >
+                    {savingField === "ical_url" ? <Loader2 size={12} className="animate-spin" /> : savedField === "ical_url" ? <Check size={12} /> : null}
+                    {savedField === "ical_url" ? "Guardado" : savingField === "ical_url" ? "Guardando..." : "Guardar URL"}
+                  </button>
+                  {propiedad.ical_url && (
+                    <button
+                      onClick={handleSync}
+                      disabled={syncing}
+                      className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                    >
+                      <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+                      {syncing ? "Sincronizando..." : "Sincronizar ahora"}
+                    </button>
+                  )}
+                </div>
+                {syncMsg && (
+                  <p className="text-xs text-muted-foreground mt-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg px-2 py-1">{syncMsg}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -276,9 +407,21 @@ function PropiedadCard({ propiedad, onToggle, showRenta }: { propiedad: Propieda
 function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
   const status = getReservationStatus(reserva.fecha_inicio, reserva.fecha_fin);
   const propNombre = reserva.propiedades?.nombre ?? `Propiedad #${reserva.propiedad_id}`;
+  const isIcal = reserva.origen === "ical";
+  const instrucciones = reserva.propiedades?.instrucciones ?? null;
+
+  const whatsappMsg = (() => {
+    let msg = `Hola ${reserva.nombre_huesped}, bienvenido(a) a ${propNombre}.\n`;
+    msg += `Su reserva es del ${format(parseISO(reserva.fecha_inicio), "dd/MM/yyyy")} al ${format(parseISO(reserva.fecha_fin), "dd/MM/yyyy")}.\n`;
+    if (instrucciones) {
+      msg += `\nInstrucciones:\n${instrucciones}\n`;
+    }
+    msg += `\nGracias por su reserva. Cualquier consulta, estamos a la orden.`;
+    return msg;
+  })();
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={`overflow-hidden ${isIcal ? "border-l-4 border-l-amber-400" : ""}`}>
       <div className={`h-1.5 w-full ${status.variant === "success" ? "bg-emerald-500" : status.variant === "warning" ? "bg-amber-500" : "bg-slate-400"}`} />
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -294,7 +437,10 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
               </div>
             </div>
           </div>
-          <Badge variant={status.variant} className="shrink-0 text-xs">{status.label}</Badge>
+          <div className="flex items-center gap-1.5">
+            {isIcal && <Badge variant="warning" className="text-[10px]">Sync</Badge>}
+            <Badge variant={status.variant} className="shrink-0 text-xs">{status.label}</Badge>
+          </div>
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5 flex items-center justify-between border border-border/50">
@@ -313,7 +459,7 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {reserva.canal_renta && (
             <div className="flex items-center text-muted-foreground text-xs">
               <Clock size={12} className="mr-1 shrink-0" />
@@ -326,6 +472,15 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
               <span>{reserva.creado_por}</span>
             </div>
           )}
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(whatsappMsg)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors ml-auto"
+          >
+            <MessageCircle size={12} />
+            WhatsApp
+          </a>
         </div>
       </div>
     </Card>

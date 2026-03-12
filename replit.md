@@ -40,7 +40,8 @@ artifacts-monorepo/
 ## Database Schema
 
 ### Supabase Tables (remote - `propiedades`)
-- **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, creado_en
+- **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, esta_alquilada, ical_url, creado_en
+- **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at
@@ -75,11 +76,13 @@ artifacts-monorepo/
 - `POST /api/reservations` - Create reservation
 - `GET /api/expenses` - List expenses (optional ?propertyId filter)
 - `POST /api/expenses` - Create expense
+- `POST /api/sync-ical` - Sync all properties with iCal URLs (fetches iCal feeds, parses events, upserts reservas)
+- `POST /api/sync-ical/:propiedadId` - Sync a single property's iCal feed
 
 ## Frontend Pages
 
-- **Inicio** (`/`) - Two sections: "Propiedades Vacacionales" and "Propiedades Mensuales". Mensual cards have inline editable precio mensual (renta_fija_lps), and an Alquilada/Disponible toggle (esta_alquilada boolean) with color-coded status
-- **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list, and form to create reservations via Supabase `reservas` table with overlap validation
+- **Inicio** (`/`) - Dashboard with "Reservas Próximas" and "Inventario de Propiedades" button. Inventory shows vacacionales/mensuales with expandable cards for editing instrucciones and iCal URL per property, plus per-property sync button. WhatsApp button on each reservation card. Origin badge (Sync) for iCal-synced reservations.
+- **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list with WhatsApp buttons and origin badges, global "Sync iCal" button, and form to create/edit reservations with overlap validation
 - **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
 

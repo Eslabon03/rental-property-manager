@@ -4,7 +4,7 @@ import { useForm, Controller } from "react-hook-form";
 import { format, eachDayOfInterval, parseISO, isBefore, isAfter, isSameDay, startOfDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import Calendar from "react-calendar";
-import { Calendar as CalendarIcon, User, Phone, Radio, ChevronDown, AlertCircle, UserCheck, Edit3 } from "lucide-react";
+import { Calendar as CalendarIcon, User, Phone, Radio, ChevronDown, AlertCircle, UserCheck, Edit3, MessageCircle, RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useUserEmail } from "@/lib/roles";
 import { Button, Card, Badge, FAB, Modal, Input, Select } from "@/components/ui";
@@ -14,6 +14,7 @@ type Propiedad = {
   nombre: string;
   tipo: string;
   pais: string;
+  instrucciones: string | null;
 };
 
 type Reserva = {
@@ -28,6 +29,7 @@ type Reserva = {
   creado_por: string | null;
   modificado_por: string | null;
   modificado_en: string | null;
+  origen: string | null;
 };
 
 type ReservaFormData = {
@@ -45,7 +47,7 @@ function useSupabasePropiedadesVacacionales() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("propiedades")
-        .select("id, nombre, tipo, pais")
+        .select("id, nombre, tipo, pais, instrucciones")
         .eq("tipo", "vacacional")
         .order("nombre");
       if (error) throw error;
@@ -84,6 +86,16 @@ function isDateOccupied(date: Date, occupiedDates: Date[]): boolean {
   return occupiedDates.some(d => isSameDay(d, date));
 }
 
+function buildWhatsAppMessage(huesped: string, propiedad: string, instrucciones: string | null, fechaInicio: string, fechaFin: string): string {
+  let msg = `Hola ${huesped}, bienvenido(a) a ${propiedad}.\n`;
+  msg += `Su reserva es del ${format(parseISO(fechaInicio), "dd/MM/yyyy")} al ${format(parseISO(fechaFin), "dd/MM/yyyy")}.\n`;
+  if (instrucciones) {
+    msg += `\nInstrucciones:\n${instrucciones}\n`;
+  }
+  msg += `\nGracias por su reserva. Cualquier consulta, estamos a la orden.`;
+  return msg;
+}
+
 function hasOverlap(inicio: string, fin: string, reservas: Reserva[]): boolean {
   const newStart = startOfDay(parseISO(inicio));
   const newEnd = startOfDay(parseISO(fin));
@@ -104,9 +116,31 @@ export default function Reservas() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReserva, setEditingReserva] = useState<Reserva | null>(null);
   const [selectedPropiedadId, setSelectedPropiedadId] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const userEmail = useUserEmail();
+  const queryClient = useQueryClient();
   const { data: propiedades, isLoading: loadingProps } = useSupabasePropiedadesVacacionales();
   const { data: reservas, isLoading: loadingReservas } = useSupabaseReservas(selectedPropiedadId);
+
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const resp = await fetch("/api/sync-ical", { method: "POST" });
+      const data = await resp.json();
+      if (resp.ok) {
+        setSyncResult(`${data.synced} reserva(s) sincronizada(s)`);
+        queryClient.invalidateQueries({ queryKey: ["supabase-reservas"] });
+      } else {
+        setSyncResult(data.error || "Error al sincronizar");
+      }
+    } catch {
+      setSyncResult("Error de conexión");
+    }
+    setSyncing(false);
+    setTimeout(() => setSyncResult(null), 5000);
+  };
 
   const occupiedDates = useMemo(() => {
     if (!reservas) return [];
@@ -117,10 +151,25 @@ export default function Reservas() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-display font-bold text-foreground">Reservas</h2>
-        <p className="text-muted-foreground text-sm mt-1">Calendario de ocupación</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-foreground">Reservas</h2>
+          <p className="text-muted-foreground text-sm mt-1">Calendario de ocupación</p>
+        </div>
+        <button
+          onClick={handleSyncAll}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+          {syncing ? "Sincronizando..." : "Sync iCal"}
+        </button>
       </div>
+      {syncResult && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          {syncResult}
+        </div>
+      )}
 
       <Card className="p-4">
         <label className="text-sm font-semibold text-foreground/80 pl-1 mb-1.5 block">Seleccionar propiedad</label>
@@ -184,8 +233,10 @@ export default function Reservas() {
           </h3>
           {reservas.map(r => {
             const prop = propiedades?.find(p => p.id === r.propiedad_id);
+            const isIcal = r.origen === "ical";
+            const whatsappMsg = buildWhatsAppMessage(r.nombre_huesped, prop?.nombre ?? "", prop?.instrucciones ?? null, r.fecha_inicio, r.fecha_fin);
             return (
-              <Card key={r.id} className="p-4">
+              <Card key={r.id} className={`p-4 ${isIcal ? "border-l-4 border-l-amber-400" : ""}`}>
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <h4 className="font-bold text-sm">{prop?.nombre ?? `Propiedad #${r.propiedad_id}`}</h4>
@@ -194,9 +245,12 @@ export default function Reservas() {
                       {r.nombre_huesped}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {isIcal && (
+                      <Badge variant="warning" className="text-[10px]">Sync</Badge>
+                    )}
                     {r.canal_renta && (
-                      <Badge variant="default" className="text-xs">{r.canal_renta}</Badge>
+                      <Badge variant={isIcal ? "warning" : "default"} className="text-[10px]">{r.canal_renta}</Badge>
                     )}
                     <button
                       onClick={() => setEditingReserva(r)}
@@ -221,12 +275,25 @@ export default function Reservas() {
                     </span>
                   </div>
                 </div>
-                {r.celular_huesped && (
-                  <div className="flex items-center text-muted-foreground text-xs mt-2">
-                    <Phone size={12} className="mr-1" />
-                    {r.celular_huesped}
-                  </div>
-                )}
+
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {r.celular_huesped && (
+                    <div className="flex items-center text-muted-foreground text-xs">
+                      <Phone size={12} className="mr-1" />
+                      {r.celular_huesped}
+                    </div>
+                  )}
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(whatsappMsg)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors ml-auto"
+                  >
+                    <MessageCircle size={12} />
+                    WhatsApp
+                  </a>
+                </div>
+
                 <div className="mt-2 pt-2 border-t border-border/50 space-y-0.5">
                   {r.creado_por && (
                     <div className="flex items-center text-muted-foreground text-[11px]">
