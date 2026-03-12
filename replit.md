@@ -41,7 +41,7 @@ artifacts-monorepo/
 
 ### Supabase Tables (remote - `propiedades`)
 - **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, esta_alquilada, ical_url, creado_en
-- **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
+- **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, monto (numeric), creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at

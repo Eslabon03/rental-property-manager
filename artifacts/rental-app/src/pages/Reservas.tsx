@@ -30,6 +30,7 @@ type Reserva = {
   modificado_por: string | null;
   modificado_en: string | null;
   origen: string | null;
+  monto: number | null;
 };
 
 type ReservaFormData = {
@@ -39,6 +40,7 @@ type ReservaFormData = {
   canal_renta: string;
   fecha_inicio: string;
   fecha_fin: string;
+  monto: string;
 };
 
 function useSupabasePropiedadesVacacionales() {
@@ -406,6 +408,7 @@ function ReservationFormModal({
         canal_renta: data.canal_renta || null,
         fecha_inicio: data.fecha_inicio,
         fecha_fin: data.fecha_fin,
+        monto: data.monto ? Number(data.monto) : 0,
         creado_por: userEmail,
       });
       if (error) throw error;
@@ -520,6 +523,15 @@ function ReservationFormModal({
           />
         </div>
 
+        <Input
+          label="Monto cobrado (L)"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Ej: 3500"
+          {...register("monto")}
+        />
+
         <div className="pt-4 flex gap-3">
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
           <Button type="submit" className="flex-1" disabled={isPending}>
@@ -553,6 +565,7 @@ function EditReservationModal({
       canal_renta: reserva.canal_renta ?? "",
       fecha_inicio: reserva.fecha_inicio,
       fecha_fin: reserva.fecha_fin,
+      monto: reserva.monto ? String(reserva.monto) : "",
     },
   });
 
@@ -590,6 +603,7 @@ function EditReservationModal({
           canal_renta: data.canal_renta || null,
           fecha_inicio: data.fecha_inicio,
           fecha_fin: data.fecha_fin,
+          monto: data.monto ? Number(data.monto) : 0,
           modificado_por: userEmail,
           modificado_en: new Date().toISOString(),
         })
@@ -699,6 +713,15 @@ function EditReservationModal({
             error={errors.fecha_fin?.message}
           />
         </div>
+
+        <Input
+          label="Monto cobrado (L)"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Ej: 3500"
+          {...register("monto")}
+        />
 
         <div className="pt-4 flex gap-3">
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
