@@ -70,7 +70,7 @@ artifacts-monorepo/
 
 - **Inicio** (`/`) - Property card grid from Supabase `propiedades` table, with tipo badges and country info
 - **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list, and form to create reservations via Supabase `reservas` table with overlap validation
-- **Gastos** (`/gastos`) - Expense list with categories, monthly total summary
+- **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
 
 ## TypeScript & Composite Projects
