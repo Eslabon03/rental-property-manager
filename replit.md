@@ -11,7 +11,8 @@ pnpm workspace monorepo using TypeScript. Property rental management PWA optimiz
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
+- **Database**: PostgreSQL + Drizzle ORM (local), Supabase (remote)
+- **Supabase client**: @supabase/supabase-js
 - **Frontend**: React + Vite + Tailwind CSS
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
@@ -38,10 +39,18 @@ artifacts-monorepo/
 
 ## Database Schema
 
-### Tables
+### Supabase Tables (remote - `propiedades`)
+- **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, creado_en
+
+### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at
 - **reservations**: id, property_id (FK), guest_name, check_in, check_out, total_amount, status (confirmed/pending/cancelled/completed), notes, created_at
 - **expenses**: id, property_id (FK), category, description, amount, date, created_at
+
+## Supabase Integration
+- Config file: `artifacts/rental-app/src/lib/supabase.ts`
+- Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- The Inicio (Home) page reads properties directly from the Supabase `propiedades` table
 
 ## API Endpoints
 
@@ -56,7 +65,7 @@ artifacts-monorepo/
 
 ## Frontend Pages
 
-- **Inicio** (`/`) - Property card grid with status badges, rent amounts
+- **Inicio** (`/`) - Property card grid from Supabase `propiedades` table, with tipo badges and country info
 - **Reservas** (`/reservas`) - Reservation list with guest details, dates, amounts
 - **Gastos** (`/gastos`) - Expense list with categories, monthly total summary
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
