@@ -68,7 +68,7 @@ artifacts-monorepo/
 
 ## Frontend Pages
 
-- **Inicio** (`/`) - Property card grid from Supabase `propiedades` table, with tipo badges and country info
+- **Inicio** (`/`) - Two sections: "Propiedades Vacacionales" and "Propiedades Mensuales". Mensual cards have inline editable precio mensual (renta_fija_lps), and an Alquilada/Disponible toggle (esta_alquilada boolean) with color-coded status
 - **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list, and form to create reservations via Supabase `reservas` table with overlap validation
 - **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
