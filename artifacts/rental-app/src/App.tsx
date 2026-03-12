@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,11 +9,12 @@ import { Layout } from "./components/Layout";
 import Inicio from "./pages/Inicio";
 import Reservas from "./pages/Reservas";
 import Gastos from "./pages/Gastos";
-import Reportes from "./pages/Reportes"; // Aquí está la nueva conexión
+import Reportes from "./pages/Reportes";
 import Ajustes from "./pages/Ajustes";
 
 import { supabase } from "./lib/supabase";
 import Login from "./Login";
+import { getRoleFromEmail, RoleProvider } from "./lib/roles";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +25,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function AdminRouter() {
   return (
     <Layout>
       <Switch>
@@ -34,6 +35,18 @@ function Router() {
         <Route path="/reportes" component={Reportes} />
         <Route path="/ajustes" component={Ajustes} />
         <Route component={NotFound} />
+      </Switch>
+    </Layout>
+  );
+}
+
+function LimpiezaRouter() {
+  return (
+    <Layout>
+      <Switch>
+        <Route path="/gastos" component={Gastos} />
+        <Route path="/ajustes" component={Ajustes} />
+        <Route><Redirect to="/gastos" /></Route>
       </Switch>
     </Layout>
   );
@@ -66,14 +79,19 @@ function App() {
     return <Login onLoginSuccess={setSession} />;
   }
 
+  const userEmail = session?.user?.email ?? "";
+  const role = getRoleFromEmail(userEmail);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <RoleProvider role={role}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            {role === "limpieza" ? <LimpiezaRouter /> : <AdminRouter />}
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </RoleProvider>
     </QueryClientProvider>
   );
 }

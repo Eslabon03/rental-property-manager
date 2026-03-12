@@ -47,6 +47,14 @@ artifacts-monorepo/
 - **reservations**: id, property_id (FK), guest_name, check_in, check_out, total_amount, status (confirmed/pending/cancelled/completed), notes, created_at
 - **expenses**: id, property_id (FK), category, description, amount, date, created_at
 
+## Role-Based Access Control
+- Roles determined by email: if email contains "limpieza" → role "limpieza", otherwise → "admin"
+- Context: `artifacts/rental-app/src/lib/roles.tsx` (RoleProvider, useRole, getRoleFromEmail)
+- Admin: full access to all 5 tabs (Inicio, Reservas, Gastos, Reportes, Ajustes)
+- Limpieza: only Gastos and Ajustes; all other routes redirect to /gastos
+- Navigation items filtered in Layout.tsx based on role
+- Routes protected in App.tsx with separate AdminRouter/LimpiezaRouter
+
 ## Supabase Integration
 - Config file: `artifacts/rental-app/src/lib/supabase.ts`
 - Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`

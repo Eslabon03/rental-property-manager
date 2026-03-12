@@ -2,17 +2,23 @@ import { Link, useLocation } from "wouter";
 import { Home, Calendar, CircleDollarSign, Settings, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRole } from "@/lib/roles";
+
+const ALL_NAV_ITEMS = [
+  { path: "/", label: "Inicio", icon: Home, adminOnly: true },
+  { path: "/reservas", label: "Reservas", icon: Calendar, adminOnly: true },
+  { path: "/gastos", label: "Gastos", icon: CircleDollarSign, adminOnly: false },
+  { path: "/reportes", label: "Reportes", icon: BarChart3, adminOnly: true },
+  { path: "/ajustes", label: "Ajustes", icon: Settings, adminOnly: false },
+];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const role = useRole();
 
-  const navItems = [
-    { path: "/", label: "Inicio", icon: Home },
-    { path: "/reservas", label: "Reservas", icon: Calendar },
-    { path: "/gastos", label: "Gastos", icon: CircleDollarSign },
-    { path: "/reportes", label: "Reportes", icon: BarChart3 },
-    { path: "/ajustes", label: "Ajustes", icon: Settings },
-  ];
+  const navItems = role === "limpieza"
+    ? ALL_NAV_ITEMS.filter(item => !item.adminOnly)
+    : ALL_NAV_ITEMS;
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
