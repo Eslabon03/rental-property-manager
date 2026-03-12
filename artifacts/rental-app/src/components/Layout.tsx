@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Calendar, CircleDollarSign, Settings } from "lucide-react";
+import { Home, Calendar, CircleDollarSign, Settings, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -10,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "Inicio", icon: Home },
     { path: "/reservas", label: "Reservas", icon: Calendar },
     { path: "/gastos", label: "Gastos", icon: CircleDollarSign },
+    { path: "/reportes", label: "Reportes", icon: BarChart3 },
     { path: "/ajustes", label: "Ajustes", icon: Settings },
   ];
 
