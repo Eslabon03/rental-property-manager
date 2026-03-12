@@ -123,7 +123,7 @@ export function Modal({ isOpen, onClose, title, children }: { isOpen: boolean, o
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-4 bottom-safe top-24 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:h-auto md:max-h-[85vh] bg-background rounded-3xl shadow-2xl z-[101] flex flex-col overflow-hidden border border-border"
+            className="fixed inset-x-4 bottom-24 top-12 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:h-auto md:max-h-[85vh] bg-background rounded-3xl shadow-2xl z-[101] flex flex-col overflow-hidden border border-border"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-card/50 backdrop-blur shrink-0">
               <h2 className="text-xl font-display font-bold">{title}</h2>
