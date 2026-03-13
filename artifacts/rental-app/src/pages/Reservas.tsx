@@ -532,11 +532,14 @@ function ReservationFormModal({
 
         <Select
           label="Canal de renta"
-          {...register("canal_renta")}
+          {...register("canal_renta", { required: "Selecciona un canal" })}
+          error={errors.canal_renta?.message}
         >
           <option value="">Seleccionar canal...</option>
           <option value="Airbnb">Airbnb</option>
           <option value="Booking">Booking</option>
+          <option value="Expedia">Expedia</option>
+          <option value="VRBO">VRBO</option>
           <option value="Directo">Directo</option>
           <option value="Referido">Referido</option>
           <option value="Otro">Otro</option>
@@ -745,11 +748,14 @@ function EditReservationModal({
 
         <Select
           label="Canal de renta"
-          {...register("canal_renta")}
+          {...register("canal_renta", { required: "Selecciona un canal" })}
+          error={errors.canal_renta?.message}
         >
           <option value="">Seleccionar canal...</option>
           <option value="Airbnb">Airbnb</option>
           <option value="Booking">Booking</option>
+          <option value="Expedia">Expedia</option>
+          <option value="VRBO">VRBO</option>
           <option value="Directo">Directo</option>
           <option value="Referido">Referido</option>
           <option value="Otro">Otro</option>
