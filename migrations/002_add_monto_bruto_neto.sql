@@ -1,0 +1,2 @@
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS monto_bruto numeric DEFAULT NULL;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS monto_neto numeric DEFAULT NULL;

@@ -22,6 +22,8 @@ type Reserva = {
   fecha_fin: string;
   nombre_huesped: string;
   monto: number | null;
+  monto_bruto: number | null;
+  monto_neto: number | null;
   canal_renta: string | null;
   origen: string | null;
 };
@@ -54,7 +56,7 @@ function useReservasMes(mesInicio: string, mesFin: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("reservas")
-        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, monto, canal_renta, origen")
+        .select("*")
         .gte("fecha_fin", mesInicio)
         .lte("fecha_inicio", mesFin)
         .order("fecha_inicio");
@@ -111,7 +113,11 @@ export default function Reportes() {
     for (const prop of propiedades) {
       if (prop.tipo === "vacacional") {
         const reservasProp = reservas.filter(r => r.propiedad_id === prop.id);
-        const ingresos = reservasProp.reduce((sum, r) => sum + (Number(r.monto) || 0), 0);
+        const ingresos = reservasProp.reduce((sum, r) => {
+          const neto = r.monto_neto != null ? Number(r.monto_neto) : null;
+          const fallback = Number(r.monto) || 0;
+          return sum + (neto ?? fallback);
+        }, 0);
 
         let diasOcupados = 0;
         for (const r of reservasProp) {
@@ -249,9 +255,16 @@ export default function Reportes() {
                                 <Badge variant={r.origen === "ical" ? "warning" : "default"} className="text-[9px] shrink-0">{r.canal_renta}</Badge>
                               )}
                             </div>
-                            <span className="font-semibold shrink-0 ml-2">
-                              L {(Number(r.monto) || 0).toLocaleString("es-HN")}
-                            </span>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              {r.monto_bruto != null && (
+                                <span className="text-muted-foreground">
+                                  L {Number(r.monto_bruto).toLocaleString("es-HN")}
+                                </span>
+                              )}
+                              <span className="font-semibold text-emerald-600">
+                                L {(r.monto_neto != null ? Number(r.monto_neto) : (Number(r.monto) || 0)).toLocaleString("es-HN")}
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>

@@ -41,7 +41,10 @@ artifacts-monorepo/
 
 ### Supabase Tables (remote - `propiedades`)
 - **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, esta_alquilada, ical_url, contrato_url, creado_en
-- **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, monto (numeric), creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
+- **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, monto (numeric, legacy), monto_bruto (numeric), monto_neto (numeric), creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
+
+### Pending Migrations
+- `migrations/002_add_monto_bruto_neto.sql` — Adds `monto_bruto` and `monto_neto` columns to `reservas` table. Run in Supabase SQL Editor.
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at
@@ -83,7 +86,7 @@ artifacts-monorepo/
 ## Frontend Pages
 
 - **Inicio** (`/`) - Dashboard with "Reservas Próximas" and "Inventario de Propiedades" button. Inventory shows vacacionales/mensuales with expandable cards for editing instrucciones and iCal URL per property, plus per-property sync button. WhatsApp button on each reservation card. Origin badge (Sync) for iCal-synced reservations.
-- **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list with WhatsApp buttons and origin badges, global "Sync iCal" button, and form to create/edit reservations with overlap validation
+- **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list with WhatsApp buttons, origin badges, and gross/net amount display, global "Sync iCal" button, and form to create/edit reservations with monto_bruto/monto_neto fields and overlap validation
 - **Calendario** (`/calendario`) - Full-month master calendar with multi-property occupancy visualization, property filter toggles, date-range availability search, iCal reservation swap (property reassignment), and iCal export links
 - **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences

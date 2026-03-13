@@ -31,6 +31,8 @@ type Reserva = {
   modificado_en: string | null;
   origen: string | null;
   monto: number | null;
+  monto_bruto: number | null;
+  monto_neto: number | null;
 };
 
 type ReservaFormData = {
@@ -41,6 +43,8 @@ type ReservaFormData = {
   fecha_inicio: string;
   fecha_fin: string;
   monto: string;
+  monto_bruto: string;
+  monto_neto: string;
 };
 
 function useSupabasePropiedadesVacacionales() {
@@ -278,6 +282,29 @@ export default function Reservas() {
                   </div>
                 </div>
 
+                {(r.monto_bruto || r.monto_neto || (r.monto != null && Number(r.monto) > 0)) ? (
+                  <div className="flex items-center gap-3 mt-2 text-xs">
+                    {r.monto_bruto != null && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bruto</span>
+                        <p className="font-semibold">L {Number(r.monto_bruto).toLocaleString("es-HN")}</p>
+                      </div>
+                    )}
+                    {r.monto_neto != null && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Neto</span>
+                        <p className="font-semibold text-emerald-600">L {Number(r.monto_neto).toLocaleString("es-HN")}</p>
+                      </div>
+                    )}
+                    {!r.monto_bruto && !r.monto_neto && r.monto != null && Number(r.monto) > 0 && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Monto</span>
+                        <p className="font-semibold">L {Number(r.monto).toLocaleString("es-HN")}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {r.celular_huesped && (
                     <div className="flex items-center text-muted-foreground text-xs">
@@ -401,16 +428,23 @@ function ReservationFormModal({
         throw new Error("OVERLAP");
       }
 
-      const { error } = await supabase.from("reservas").insert({
+      const montoBruto = data.monto_bruto ? Number(data.monto_bruto) : null;
+      const montoNeto = data.monto_neto ? Number(data.monto_neto) : null;
+      const insertData: Record<string, unknown> = {
         propiedad_id: Number(data.propiedad_id),
         nombre_huesped: data.nombre_huesped,
         celular_huesped: data.celular_huesped || null,
         canal_renta: data.canal_renta || null,
         fecha_inicio: data.fecha_inicio,
         fecha_fin: data.fecha_fin,
-        monto: data.monto ? Number(data.monto) : 0,
+        monto: montoNeto ?? montoBruto ?? 0,
         creado_por: userEmail,
-      });
+        origen: "manual",
+      };
+      if (montoBruto !== null) insertData.monto_bruto = montoBruto;
+      if (montoNeto !== null) insertData.monto_neto = montoNeto;
+
+      const { error } = await supabase.from("reservas").insert(insertData);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -523,14 +557,24 @@ function ReservationFormModal({
           />
         </div>
 
-        <Input
-          label="Monto cobrado (L)"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="Ej: 3500"
-          {...register("monto")}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Monto bruto (L)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ej: 5000"
+            {...register("monto_bruto")}
+          />
+          <Input
+            label="Monto neto (L)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ej: 3500"
+            {...register("monto_neto")}
+          />
+        </div>
 
         <div className="pt-4 flex gap-3">
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>
@@ -566,6 +610,8 @@ function EditReservationModal({
       fecha_inicio: reserva.fecha_inicio,
       fecha_fin: reserva.fecha_fin,
       monto: reserva.monto ? String(reserva.monto) : "",
+      monto_bruto: reserva.monto_bruto ? String(reserva.monto_bruto) : "",
+      monto_neto: reserva.monto_neto ? String(reserva.monto_neto) : "",
     },
   });
 
@@ -594,19 +640,29 @@ function EditReservationModal({
         throw new Error("OVERLAP");
       }
 
+      const editMontoBruto = data.monto_bruto ? Number(data.monto_bruto) : null;
+      const editMontoNeto = data.monto_neto ? Number(data.monto_neto) : null;
+      const updateData: Record<string, unknown> = {
+        propiedad_id: Number(data.propiedad_id),
+        nombre_huesped: data.nombre_huesped,
+        celular_huesped: data.celular_huesped || null,
+        canal_renta: data.canal_renta || null,
+        fecha_inicio: data.fecha_inicio,
+        fecha_fin: data.fecha_fin,
+        monto: editMontoNeto ?? editMontoBruto ?? (data.monto ? Number(data.monto) : 0),
+        modificado_por: userEmail,
+        modificado_en: new Date().toISOString(),
+      };
+      if (editMontoBruto !== null || reserva.monto_bruto != null) {
+        updateData.monto_bruto = editMontoBruto;
+      }
+      if (editMontoNeto !== null || reserva.monto_neto != null) {
+        updateData.monto_neto = editMontoNeto;
+      }
+
       const { error } = await supabase
         .from("reservas")
-        .update({
-          propiedad_id: Number(data.propiedad_id),
-          nombre_huesped: data.nombre_huesped,
-          celular_huesped: data.celular_huesped || null,
-          canal_renta: data.canal_renta || null,
-          fecha_inicio: data.fecha_inicio,
-          fecha_fin: data.fecha_fin,
-          monto: data.monto ? Number(data.monto) : 0,
-          modificado_por: userEmail,
-          modificado_en: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", reserva.id);
       if (error) throw error;
     },
@@ -714,14 +770,24 @@ function EditReservationModal({
           />
         </div>
 
-        <Input
-          label="Monto cobrado (L)"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="Ej: 3500"
-          {...register("monto")}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Monto bruto (L)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ej: 5000"
+            {...register("monto_bruto")}
+          />
+          <Input
+            label="Monto neto (L)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Ej: 3500"
+            {...register("monto_neto")}
+          />
+        </div>
 
         <div className="pt-4 flex gap-3">
           <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>Cancelar</Button>

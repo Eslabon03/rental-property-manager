@@ -45,6 +45,8 @@ type Reserva = {
   canal_renta: string | null;
   origen: string | null;
   monto: number | null;
+  monto_bruto: number | null;
+  monto_neto: number | null;
 };
 
 const PROPERTY_COLORS = [
@@ -83,7 +85,7 @@ function useReservasAll() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("reservas")
-        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, origen, monto")
+        .select("*")
         .order("fecha_inicio", { ascending: true });
       if (error) throw error;
       return data ?? [];

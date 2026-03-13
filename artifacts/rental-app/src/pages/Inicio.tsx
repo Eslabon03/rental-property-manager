@@ -36,6 +36,9 @@ type ReservaConPropiedad = {
   canal_renta: string | null;
   creado_por: string | null;
   origen: string | null;
+  monto: number | null;
+  monto_bruto: number | null;
+  monto_neto: number | null;
   propiedades: PropiedadJoin | null;
 };
 
@@ -54,11 +57,26 @@ function useReservasProximas() {
       const today = startOfDay(new Date()).toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("reservas")
-        .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, creado_por, origen, propiedades(nombre, tipo, pais, instrucciones)")
+        .select("*, propiedades(nombre, tipo, pais, instrucciones)")
         .gte("fecha_fin", today)
         .order("fecha_inicio", { ascending: true });
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
+      interface RawReservaRow {
+        id: number;
+        propiedad_id: number;
+        fecha_inicio: string;
+        fecha_fin: string;
+        nombre_huesped: string;
+        celular_huesped: string | null;
+        canal_renta: string | null;
+        creado_por: string | null;
+        origen: string | null;
+        monto: number | null;
+        monto_bruto: number | null;
+        monto_neto: number | null;
+        propiedades: PropiedadJoin | PropiedadJoin[] | null;
+      }
+      return ((data ?? []) as RawReservaRow[]).map((r) => ({
         id: r.id,
         propiedad_id: r.propiedad_id,
         fecha_inicio: r.fecha_inicio,
@@ -68,6 +86,9 @@ function useReservasProximas() {
         canal_renta: r.canal_renta,
         creado_por: r.creado_por,
         origen: r.origen ?? null,
+        monto: r.monto ?? null,
+        monto_bruto: r.monto_bruto ?? null,
+        monto_neto: r.monto_neto ?? null,
         propiedades: Array.isArray(r.propiedades) ? r.propiedades[0] ?? null : r.propiedades ?? null,
       }));
     },
@@ -316,8 +337,9 @@ function PropiedadCard({ propiedad, onToggle, onSaveField, showRenta }: {
       queryClient.invalidateQueries({ queryKey: ["supabase-propiedades"] });
       setUploadMsg("Contrato subido");
       setTimeout(() => setUploadMsg(null), 3000);
-    } catch (err: any) {
-      setUploadMsg(err?.message || "Error al subir");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al subir";
+      setUploadMsg(message);
       setTimeout(() => setUploadMsg(null), 4000);
     }
     setUploading(false);
@@ -625,6 +647,29 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
             </span>
           </div>
         </div>
+
+        {(reserva.monto_bruto || reserva.monto_neto || (reserva.monto != null && Number(reserva.monto) > 0)) ? (
+          <div className="flex items-center gap-3 text-xs">
+            {reserva.monto_bruto != null && (
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bruto</span>
+                <p className="font-semibold">L {Number(reserva.monto_bruto).toLocaleString("es-HN")}</p>
+              </div>
+            )}
+            {reserva.monto_neto != null && (
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Neto</span>
+                <p className="font-semibold text-emerald-600">L {Number(reserva.monto_neto).toLocaleString("es-HN")}</p>
+              </div>
+            )}
+            {!reserva.monto_bruto && !reserva.monto_neto && reserva.monto != null && Number(reserva.monto) > 0 && (
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Monto</span>
+                <p className="font-semibold">L {Number(reserva.monto).toLocaleString("es-HN")}</p>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-2 flex-wrap">
           {reserva.canal_renta && (
