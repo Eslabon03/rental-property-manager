@@ -129,25 +129,28 @@ function evaluarNotificaciones(
       }
     }
 
-    if (diasHastaCheckout === 1) {
-      const key = `${reserva.id}:1_dia`;
-      if (!enviadasSet.has(key)) {
-        pendientes.push({
-          reserva_id: reserva.id,
-          propiedad_id: reserva.propiedad_id,
-          propiedad_nombre: propNombre,
-          nombre_huesped: reserva.nombre_huesped,
-          celular_huesped: reserva.celular_huesped,
-          fecha_checkout: reserva.fecha_fin,
-          tipo: "1_dia",
-          mensaje: generarMensaje(
-            "1_dia",
-            reserva.nombre_huesped,
-            propNombre,
-            reserva.fecha_fin,
-            instrucciones
-          ),
-        });
+    if (duracion <= 7 && diasHastaCheckout === 1) {
+      const hora = ahora.getHours();
+      if (hora >= 6) {
+        const key = `${reserva.id}:1_dia`;
+        if (!enviadasSet.has(key)) {
+          pendientes.push({
+            reserva_id: reserva.id,
+            propiedad_id: reserva.propiedad_id,
+            propiedad_nombre: propNombre,
+            nombre_huesped: reserva.nombre_huesped,
+            celular_huesped: reserva.celular_huesped,
+            fecha_checkout: reserva.fecha_fin,
+            tipo: "1_dia",
+            mensaje: generarMensaje(
+              "1_dia",
+              reserva.nombre_huesped,
+              propNombre,
+              reserva.fecha_fin,
+              instrucciones
+            ),
+          });
+        }
       }
     }
   }
