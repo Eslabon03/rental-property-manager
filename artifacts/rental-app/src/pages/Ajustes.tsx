@@ -14,6 +14,11 @@ import {
   Plus,
   AlertCircle,
   ExternalLink,
+  MessageSquare,
+  Send,
+  Clock,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { Card, Button, Modal, Input } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
@@ -174,6 +179,7 @@ export default function Ajustes() {
 
       {role === "admin" && <MantenimientoSection />}
       {role === "admin" && <InventarioSection />}
+      {role === "admin" && <NotificacionesSection />}
 
       <div className="pt-4 pb-8">
         <button
@@ -499,5 +505,259 @@ function AddInsumoModal({ onClose }: { onClose: () => void }) {
         </div>
       </form>
     </Modal>
+  );
+}
+
+interface NotificacionPendiente {
+  reserva_id: number;
+  propiedad_id: number;
+  propiedad_nombre: string;
+  nombre_huesped: string;
+  celular_huesped: string | null;
+  fecha_checkout: string;
+  tipo: string;
+  mensaje: string;
+}
+
+interface NotificacionEnviada {
+  id: number;
+  reserva_id: number;
+  propiedad_id: number;
+  tipo: string;
+  mensaje: string;
+  celular_huesped: string | null;
+  nombre_huesped: string | null;
+  enviado_en: string;
+}
+
+function NotificacionesSection() {
+  const BASE_URL = import.meta.env.BASE_URL;
+  const queryClient = useQueryClient();
+
+  const {
+    data: pendientesData,
+    isLoading: loadingPendientes,
+    isError: errorPendientes,
+    refetch: refetchPendientes,
+  } = useQuery<{ pendientes: NotificacionPendiente[]; total: number }>({
+    queryKey: ["admin-notificaciones-pendientes"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE_URL}api/notificaciones/pendientes`);
+      if (!resp.ok) throw new Error("Error al cargar notificaciones");
+      return resp.json();
+    },
+    retry: false,
+  });
+
+  const { data: enviadasData, isLoading: loadingEnviadas } = useQuery<{
+    enviadas: NotificacionEnviada[];
+  }>({
+    queryKey: ["admin-notificaciones-enviadas"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE_URL}api/notificaciones/enviadas`);
+      if (!resp.ok) throw new Error("Error al cargar enviadas");
+      return resp.json();
+    },
+    retry: false,
+  });
+
+  const [enviarError, setEnviarError] = useState<string | null>(null);
+  const [enviarExito, setEnviarExito] = useState<string | null>(null);
+
+  const enviarMut = useMutation({
+    mutationFn: async (notif: NotificacionPendiente) => {
+      setEnviarError(null);
+      setEnviarExito(null);
+      const resp = await fetch(`${BASE_URL}api/notificaciones/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reserva_id: notif.reserva_id,
+          propiedad_id: notif.propiedad_id,
+          tipo: notif.tipo,
+          mensaje: notif.mensaje,
+          celular_huesped: notif.celular_huesped,
+          nombre_huesped: notif.nombre_huesped,
+        }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(
+          (data as Record<string, string>).error ??
+            "Error al registrar notificación"
+        );
+      }
+      return resp.json();
+    },
+    onSuccess: (data: { message?: string }) => {
+      setEnviarExito(data.message ?? "Registrada correctamente");
+      setTimeout(() => setEnviarExito(null), 4000);
+      queryClient.invalidateQueries({
+        queryKey: ["admin-notificaciones-pendientes"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-notificaciones-enviadas"],
+      });
+    },
+    onError: (err: Error) => {
+      setEnviarError(err.message);
+      setTimeout(() => setEnviarError(null), 6000);
+    },
+  });
+
+  const pendientes = pendientesData?.pendientes ?? [];
+  const enviadas = enviadasData?.enviadas ?? [];
+  const [showEnviadas, setShowEnviadas] = useState(false);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 ml-1">
+        <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+          <MessageSquare size={14} />
+          Notificaciones de Check-out
+        </h4>
+        <button
+          onClick={() => refetchPendientes()}
+          className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+          title="Actualizar"
+        >
+          <RefreshCw size={16} />
+        </button>
+      </div>
+
+      {enviarError && (
+        <div className="mb-3 p-3 rounded-xl bg-destructive/10 text-destructive text-sm flex items-center gap-2">
+          <AlertCircle size={16} />
+          {enviarError}
+        </div>
+      )}
+      {enviarExito && (
+        <div className="mb-3 p-3 rounded-xl bg-emerald-100 text-emerald-700 text-sm flex items-center gap-2">
+          <CheckCircle2 size={16} />
+          {enviarExito}
+        </div>
+      )}
+
+      {errorPendientes ? (
+        <Card className="p-4">
+          <p className="text-sm text-muted-foreground text-center">
+            No se pudieron cargar las notificaciones. Verifica que las tablas
+            existan en Supabase.
+          </p>
+        </Card>
+      ) : loadingPendientes ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-24 bg-card rounded-2xl animate-pulse border border-border"
+            />
+          ))}
+        </div>
+      ) : pendientes.length === 0 ? (
+        <Card className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            No hay notificaciones pendientes por enviar
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pendientes.map((notif) => (
+            <Card key={`${notif.reserva_id}-${notif.tipo}`} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        notif.tipo === "7_dias"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {notif.tipo === "7_dias" ? "7 días" : "1 día"}
+                    </span>
+                    <p className="font-bold text-sm truncate">
+                      {notif.propiedad_nombre}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {notif.nombre_huesped} — Check-out:{" "}
+                    {format(parseISO(notif.fecha_checkout), "dd MMM yyyy", {
+                      locale: es,
+                    })}
+                  </p>
+                  {notif.celular_huesped && (
+                    <p className="text-xs text-muted-foreground">
+                      Tel: {notif.celular_huesped}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => enviarMut.mutate(notif)}
+                  disabled={enviarMut.isPending}
+                  className="shrink-0 p-2.5 rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors disabled:opacity-50"
+                  title="Marcar como enviada"
+                >
+                  {enviarMut.isPending ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Send size={18} />
+                  )}
+                </button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <button
+          onClick={() => setShowEnviadas(!showEnviadas)}
+          className="text-sm font-semibold text-primary flex items-center gap-1.5 hover:underline"
+        >
+          <Clock size={14} />
+          {showEnviadas
+            ? "Ocultar enviadas"
+            : `Ver enviadas recientes (${enviadas.length})`}
+        </button>
+
+        {showEnviadas && (
+          <div className="mt-3 space-y-2">
+            {loadingEnviadas ? (
+              <div className="h-16 bg-card rounded-xl animate-pulse border border-border" />
+            ) : enviadas.length === 0 ? (
+              <Card className="p-4 text-center">
+                <p className="text-xs text-muted-foreground">
+                  No hay notificaciones enviadas
+                </p>
+              </Card>
+            ) : (
+              enviadas.slice(0, 20).map((env) => (
+                <Card
+                  key={env.id}
+                  className="p-3 flex items-center gap-3 opacity-70"
+                >
+                  <CheckCircle2
+                    size={16}
+                    className="text-emerald-500 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">
+                      {env.nombre_huesped ?? `Reserva #${env.reserva_id}`} —{" "}
+                      {env.tipo === "7_dias" ? "7 días" : "1 día"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(parseISO(env.enviado_en), "dd MMM yyyy HH:mm", {
+                        locale: es,
+                      })}
+                    </p>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -45,12 +45,14 @@ artifacts-monorepo/
 - **mantenimiento_pendientes**: id, propiedad_id (FK), descripcion, foto_url, estado (pendiente/resuelto), creado_en, creado_por
 - **inventario_insumos**: id, nombre, cantidad_actual, cantidad_por_limpieza, unidad, creado_en
 - **limpiezas_completadas**: id, reserva_id (FK), propiedad_id (FK), evidencia_url, creado_por, creado_en
+- **notificaciones_enviadas**: id, reserva_id (FK), propiedad_id (FK), tipo (7_dias/1_dia), mensaje, celular_huesped, nombre_huesped, enviado_en, UNIQUE(reserva_id, tipo)
 
 ### Pending Migrations
 - `migrations/002_add_monto_bruto_neto.sql` — Adds `monto_bruto` and `monto_neto` columns to `reservas` table. Run in Supabase SQL Editor.
 - `migrations/003_add_mantenimiento_pendientes.sql` — Creates `mantenimiento_pendientes` table for damage reporting. Run in Supabase SQL Editor.
 - `migrations/004_add_inventario_insumos.sql` — Creates `inventario_insumos` table for supply inventory. Run in Supabase SQL Editor.
 - `migrations/005_add_limpiezas_completadas.sql` — Creates `limpiezas_completadas` table for cleaning completion records with evidence URLs. Run in Supabase SQL Editor.
+- `migrations/006_add_notificaciones_enviadas.sql` — Creates `notificaciones_enviadas` table for WhatsApp notification tracking. Run in Supabase SQL Editor.
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at
@@ -88,6 +90,9 @@ artifacts-monorepo/
 - `POST /api/sync-ical` - Sync all properties with iCal URLs (fetches iCal feeds, parses events, upserts reservas)
 - `POST /api/sync-ical/:propiedadId` - Sync a single property's iCal feed
 - `GET /api/export-ical/:propiedadId` - Export manual reservations as .ics file for blocking external calendars
+- `GET /api/notificaciones/pendientes` - List pending check-out notifications (7-day and 1-day rules)
+- `POST /api/notificaciones/webhook` - Mark a notification as sent (with duplicate prevention via UNIQUE constraint)
+- `GET /api/notificaciones/enviadas` - List recently sent notifications (last 50)
 
 ## Frontend Pages
 
