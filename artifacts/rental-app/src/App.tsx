@@ -12,7 +12,9 @@ import Gastos from "./pages/Gastos";
 import Reportes from "./pages/Reportes";
 import Ajustes from "./pages/Ajustes";
 import Calendario from "./pages/Calendario";
+import Limpieza from "./pages/Limpieza";
 
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import Login from "./Login";
 import { getRoleFromEmail, RoleProvider } from "./lib/roles";
@@ -46,16 +48,17 @@ function LimpiezaRouter() {
   return (
     <Layout>
       <Switch>
+        <Route path="/limpieza" component={Limpieza} />
         <Route path="/gastos" component={Gastos} />
         <Route path="/ajustes" component={Ajustes} />
-        <Route><Redirect to="/gastos" /></Route>
+        <Route><Redirect to="/limpieza" /></Route>
       </Switch>
     </Layout>
   );
 }
 
 function App() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {

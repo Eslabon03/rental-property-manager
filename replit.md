@@ -42,9 +42,13 @@ artifacts-monorepo/
 ### Supabase Tables (remote - `propiedades`)
 - **propiedades**: id, nombre, tipo (vacacional/mensual), pais, renta_fija_lps, instrucciones, esta_alquilada, ical_url, contrato_url, creado_en
 - **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, monto (numeric, legacy), monto_bruto (numeric), monto_neto (numeric), creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
+- **mantenimiento_pendientes**: id, propiedad_id (FK), descripcion, foto_url, estado (pendiente/resuelto), creado_en, creado_por
+- **inventario_insumos**: id, nombre, cantidad_actual, cantidad_por_limpieza, unidad, creado_en
 
 ### Pending Migrations
 - `migrations/002_add_monto_bruto_neto.sql` — Adds `monto_bruto` and `monto_neto` columns to `reservas` table. Run in Supabase SQL Editor.
+- `migrations/003_add_mantenimiento_pendientes.sql` — Creates `mantenimiento_pendientes` table for damage reporting. Run in Supabase SQL Editor.
+- `migrations/004_add_inventario_insumos.sql` — Creates `inventario_insumos` table for supply inventory. Run in Supabase SQL Editor.
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at
@@ -54,8 +58,8 @@ artifacts-monorepo/
 ## Role-Based Access Control
 - Roles determined by email: if email contains "limpieza" → role "limpieza", otherwise → "admin"
 - Context: `artifacts/rental-app/src/lib/roles.tsx` (RoleProvider, useRole, getRoleFromEmail)
-- Admin: full access to all 5 tabs (Inicio, Reservas, Gastos, Reportes, Ajustes)
-- Limpieza: only Gastos and Ajustes; all other routes redirect to /gastos
+- Admin: full access to all tabs (Inicio, Reservas, Calendario, Gastos, Reportes, Ajustes)
+- Limpieza: Limpieza (landing), Gastos, and Ajustes; all other routes redirect to /limpieza
 - Limpieza users can only see/work with properties matching "Roatán" or "Las Palmas" (filtered via `filterPropiedadesPorRol`)
 - Navigation items filtered in Layout.tsx based on role
 - Routes protected in App.tsx with separate AdminRouter/LimpiezaRouter
@@ -89,7 +93,8 @@ artifacts-monorepo/
 - **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list with WhatsApp buttons, origin badges, and gross/net amount display, global "Sync iCal" button, and form to create/edit reservations with monto_bruto/monto_neto fields and overlap validation
 - **Calendario** (`/calendario`) - Full-month master calendar with multi-property occupancy visualization, property filter toggles, date-range availability search, iCal reservation swap (property reassignment), and iCal export links
 - **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
-- **Ajustes** (`/ajustes`) - Settings page with profile, preferences
+- **Limpieza** (`/limpieza`) - Limpieza-role landing page showing upcoming check-outs (next 3 days) for assigned properties. Large-icon cards with actions: "Subir Evidencia (Limpio)" (camera/file upload to Supabase Storage `evidencias` bucket), "Reportar Daño" (voice-enabled description + photo → `mantenimiento_pendientes` table), "Marcar Limpieza Completada" (auto-deducts supply inventory). Only visible to limpieza role.
+- **Ajustes** (`/ajustes`) - Settings page with profile, preferences. Admin-only sections: Mantenimiento Pendiente (view/resolve damage reports), Inventario de Insumos (manage supplies with stock levels and low-stock alerts)
 
 ## TypeScript & Composite Projects
 
