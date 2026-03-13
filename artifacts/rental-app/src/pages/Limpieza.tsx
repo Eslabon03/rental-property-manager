@@ -152,7 +152,17 @@ export default function Limpieza() {
             evidencia_url: evidenceUrls.get(checkout.id) ?? null,
             creado_por: userEmail,
           });
-        if (completionErr) throw completionErr;
+        if (completionErr) {
+          const isDuplicate =
+            "code" in completionErr && completionErr.code === "23505";
+          if (isDuplicate) {
+            setSessionCompletedIds((prev) => new Set(prev).add(checkout.id));
+            queryClient.invalidateQueries({ queryKey: ["limpieza-completed-ids"] });
+            setCompletingId(null);
+            return;
+          }
+          throw completionErr;
+        }
 
         const { data: insumos, error: fetchErr } = await supabase
           .from("inventario_insumos")
