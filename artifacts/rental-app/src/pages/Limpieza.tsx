@@ -89,11 +89,26 @@ function usePropiedadesLimpieza() {
   });
 }
 
+function useCompletedReservaIds() {
+  return useQuery<Set<number>>({
+    queryKey: ["limpieza-completed-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("limpiezas_completadas")
+        .select("reserva_id");
+      if (error) throw error;
+      return new Set((data ?? []).map((r: { reserva_id: number }) => r.reserva_id));
+    },
+    retry: false,
+  });
+}
+
 export default function Limpieza() {
   const userEmail = useUserEmail();
   const queryClient = useQueryClient();
   const { data: checkoutsRaw, isLoading, isError: checkoutsError } = useCheckoutsProximos();
   const { data: propiedadesRaw } = usePropiedadesLimpieza();
+  const { data: persistedCompletedIds } = useCompletedReservaIds();
 
   const propiedades = useMemo(
     () => filterPropiedadesPorRol(propiedadesRaw ?? [], "limpieza"),
@@ -108,8 +123,14 @@ export default function Limpieza() {
 
   const [damageModal, setDamageModal] = useState<ReservaCheckout | null>(null);
   const [evidenceModal, setEvidenceModal] = useState<ReservaCheckout | null>(null);
-  const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
+  const [sessionCompletedIds, setSessionCompletedIds] = useState<Set<number>>(new Set());
   const [completingId, setCompletingId] = useState<number | null>(null);
+
+  const completedIds = useMemo(() => {
+    const merged = new Set(persistedCompletedIds ?? []);
+    sessionCompletedIds.forEach((id) => merged.add(id));
+    return merged;
+  }, [persistedCompletedIds, sessionCompletedIds]);
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [evidenceUrls, setEvidenceUrls] = useState<Map<number, string>>(new Map());
 
@@ -151,8 +172,9 @@ export default function Limpieza() {
           }
         }
 
-        setCompletedIds((prev) => new Set(prev).add(checkout.id));
+        setSessionCompletedIds((prev) => new Set(prev).add(checkout.id));
         queryClient.invalidateQueries({ queryKey: ["admin-insumos"] });
+        queryClient.invalidateQueries({ queryKey: ["limpieza-completed-ids"] });
       } catch (err: unknown) {
         const message =
           err instanceof Error
