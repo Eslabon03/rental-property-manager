@@ -1,0 +1,31 @@
+"Necesito transformar la aplicación en un Property Management System (PMS) completo, integrando operaciones visuales, finanzas y control de inventario. Implementa lo siguiente por fases:
+
+FASE 1: Calendario Maestro (Admin)
+
+Crea una nueva ruta /calendario. Debe tener un calendario de mes completo en el centro. Alrededor, muestra botones para mostrar/ocultar propiedades específicas (solo filtra las que tienen tipo === 'vacacional').
+
+En este calendario, muestra visualmente los días ocupados. Agrega un buscador superior: 'Consultar Disponibilidad' por rango de fechas, que retorne qué propiedades están libres.
+
+En la tabla Supabase, permite la exportación iCal: genera un endpoint/ruta que devuelva un archivo .ics de nuestras reservas manuales para poder bloquear calendarios externos.
+
+Permite editar una reserva sincronizada (solo cambiar el propiedad_id) para hacer swaps internos sin alterar el origen externo.
+
+FASE 2: Finanzas (Admin)
+
+En la tabla de reservas, asegúrate de tener campos para: origen (Airbnb/Expedia/Directo), huesped_nombre, monto_bruto, monto_neto (después de comisión).
+
+FASE 3: Modo Limpieza (Accesibilidad Máxima - Rol: Limpieza)
+
+Crea la ruta /limpieza enfocada 100% en UI de íconos grandes y mínima lectura. Muestra solo los check-outs correspondientes a los próximos días.
+
+Agrega un botón con ícono de Micrófono (usando la Web Speech API webkitSpeechRecognition) para rellenar campos de texto (dictado por voz).
+
+Formularios visuales: Botón de cámara para 'Subir Evidencia (Limpio)' y 'Reportar Daño' (esto último debe alimentar una nueva tabla mantenimiento_pendientes).
+
+Inventario: Crea una tabla inventario_insumos. Al completar una limpieza, debe restar automáticamente cantidades configuradas por defecto (ej. -2 papel higiénico).
+
+FASE 4: Lógica de Notificaciones Webhook
+
+Prepara la estructura o función que evalúe: Si reserva > 7 días, enviar alerta 7 días antes del check-out. Si reserva < 7 días, alerta 1 día antes a las 6 AM. (Prepara la función para luego conectarla a un bot de WhatsApp mediante API).
+
+REGLA ESTRUCTURAL: Mantén el Login seguro. No rompas la separación actual entre rentas mensuales y vacacionales."
