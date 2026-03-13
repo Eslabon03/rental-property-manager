@@ -44,11 +44,13 @@ artifacts-monorepo/
 - **reservas**: id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, celular_huesped, canal_renta, monto (numeric, legacy), monto_bruto (numeric), monto_neto (numeric), creado_en, creado_por, modificado_por, modificado_en, origen (manual/ical)
 - **mantenimiento_pendientes**: id, propiedad_id (FK), descripcion, foto_url, estado (pendiente/resuelto), creado_en, creado_por
 - **inventario_insumos**: id, nombre, cantidad_actual, cantidad_por_limpieza, unidad, creado_en
+- **limpiezas_completadas**: id, reserva_id (FK), propiedad_id (FK), evidencia_url, creado_por, creado_en
 
 ### Pending Migrations
 - `migrations/002_add_monto_bruto_neto.sql` — Adds `monto_bruto` and `monto_neto` columns to `reservas` table. Run in Supabase SQL Editor.
 - `migrations/003_add_mantenimiento_pendientes.sql` — Creates `mantenimiento_pendientes` table for damage reporting. Run in Supabase SQL Editor.
 - `migrations/004_add_inventario_insumos.sql` — Creates `inventario_insumos` table for supply inventory. Run in Supabase SQL Editor.
+- `migrations/005_add_limpiezas_completadas.sql` — Creates `limpiezas_completadas` table for cleaning completion records with evidence URLs. Run in Supabase SQL Editor.
 
 ### Local PostgreSQL Tables
 - **properties**: id, name, address, type, bedrooms, bathrooms, monthly_rent, status (available/occupied/maintenance), image_url, created_at

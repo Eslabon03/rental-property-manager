@@ -111,6 +111,11 @@ export default function Limpieza() {
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
   const [completingId, setCompletingId] = useState<number | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [evidenceUrls, setEvidenceUrls] = useState<Map<number, string>>(new Map());
+
+  const handleEvidenceUploaded = useCallback((checkoutId: number, url: string) => {
+    setEvidenceUrls((prev) => new Map(prev).set(checkoutId, url));
+  }, []);
 
   const handleComplete = useCallback(
     async (checkout: ReservaCheckout) => {
@@ -118,11 +123,27 @@ export default function Limpieza() {
       setCompleteError(null);
 
       try {
+        const { error: completionErr } = await supabase
+          .from("limpiezas_completadas")
+          .insert({
+            reserva_id: checkout.id,
+            propiedad_id: checkout.propiedad_id,
+            evidencia_url: evidenceUrls.get(checkout.id) ?? null,
+            creado_por: userEmail,
+          });
+        if (completionErr) throw completionErr;
+      } catch {
+        // limpiezas_completadas table may not exist yet — continue
+      }
+
+      try {
         const { data: insumos, error: fetchErr } = await supabase
           .from("inventario_insumos")
           .select("id, cantidad_actual, cantidad_por_limpieza");
 
-        if (!fetchErr && insumos && insumos.length > 0) {
+        if (fetchErr) throw fetchErr;
+
+        if (insumos && insumos.length > 0) {
           for (const item of insumos) {
             const nuevaCantidad = Math.max(
               0,
@@ -135,15 +156,23 @@ export default function Limpieza() {
             if (updateErr) throw updateErr;
           }
         }
-      } catch {
-        // inventario_insumos table may not exist yet — continue silently
+      } catch (err: unknown) {
+        const isTableMissing =
+          err instanceof Object &&
+          "code" in err &&
+          (err as { code: string }).code === "42P01";
+        if (!isTableMissing) {
+          setCompleteError(
+            "Error al deducir insumos. La limpieza se registró pero el inventario no se actualizó."
+          );
+        }
       }
 
       setCompletedIds((prev) => new Set(prev).add(checkout.id));
       setCompletingId(null);
       queryClient.invalidateQueries({ queryKey: ["admin-insumos"] });
     },
-    [queryClient]
+    [queryClient, userEmail, evidenceUrls]
   );
 
   return (
@@ -234,10 +263,16 @@ export default function Limpieza() {
                     <div className="grid grid-cols-1 gap-3">
                       <button
                         onClick={() => setEvidenceModal(checkout)}
-                        className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl text-sm font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 active:scale-[0.98] transition-all"
+                        className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl text-sm font-bold active:scale-[0.98] transition-all ${
+                          evidenceUrls.has(checkout.id)
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        }`}
                       >
                         <Camera size={20} />
-                        Subir Evidencia (Limpio)
+                        {evidenceUrls.has(checkout.id)
+                          ? "Evidencia Subida"
+                          : "Subir Evidencia (Limpio)"}
                       </button>
 
                       <button
@@ -283,6 +318,7 @@ export default function Limpieza() {
           checkout={evidenceModal}
           userEmail={userEmail}
           onClose={() => setEvidenceModal(null)}
+          onUploaded={handleEvidenceUploaded}
         />
       )}
 
@@ -301,10 +337,12 @@ function EvidenceUploadModal({
   checkout,
   userEmail,
   onClose,
+  onUploaded,
 }: {
   checkout: ReservaCheckout;
   userEmail: string;
   onClose: () => void;
+  onUploaded: (checkoutId: number, url: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
@@ -325,6 +363,12 @@ function EvidenceUploadModal({
         .upload(filePath, file, { upsert: true });
 
       if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from("evidencias")
+        .getPublicUrl(filePath);
+
+      onUploaded(checkout.id, urlData.publicUrl);
       setUploaded(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error al subir";
