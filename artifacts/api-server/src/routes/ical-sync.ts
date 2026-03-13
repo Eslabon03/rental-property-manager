@@ -4,6 +4,17 @@ import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
+interface ICalPropRow {
+  id: number;
+  nombre: string;
+  ical_url: string;
+}
+
+interface ExistingReservaRow {
+  fecha_inicio: string;
+  fecha_fin: string;
+}
+
 function parseICalEvents(icalText: string): Array<{ summary: string; dtstart: string; dtend: string }> {
   const jcalData = ICAL.parse(icalText);
   const comp = new ICAL.Component(jcalData);
@@ -54,7 +65,9 @@ router.post("/sync-ical", async (_req, res) => {
 
     if (propError) throw propError;
 
-    const propsWithUrl = (propiedades ?? []).filter((p: any) => p.ical_url && p.ical_url.trim() !== "");
+    const propsWithUrl = ((propiedades ?? []) as ICalPropRow[]).filter(
+      (p) => p.ical_url && p.ical_url.trim() !== ""
+    );
 
     if (propsWithUrl.length === 0) {
       res.json({ message: "No hay propiedades con iCal configurado", synced: 0, details: [] });
@@ -92,7 +105,9 @@ router.post("/sync-ical", async (_req, res) => {
           .eq("origen", "ical");
 
         const existingSet = new Set(
-          (existingReservas ?? []).map((r: any) => `${r.fecha_inicio}|${r.fecha_fin}`)
+          ((existingReservas ?? []) as ExistingReservaRow[]).map(
+            (r) => `${r.fecha_inicio}|${r.fecha_fin}`
+          )
         );
 
         const newReservas = futureEvents.filter(
@@ -116,8 +131,9 @@ router.post("/sync-ical", async (_req, res) => {
 
         details.push({ propiedad: prop.nombre, nuevas: newReservas.length });
         totalSynced += newReservas.length;
-      } catch (err: any) {
-        details.push({ propiedad: prop.nombre, nuevas: 0, error: err.message });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Error desconocido";
+        details.push({ propiedad: prop.nombre, nuevas: 0, error: message });
       }
     }
 
@@ -126,8 +142,9 @@ router.post("/sync-ical", async (_req, res) => {
       synced: totalSynced,
       details,
     });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error interno";
+    res.status(500).json({ error: message });
   }
 });
 
@@ -151,14 +168,16 @@ router.post("/sync-ical/:propiedadId", async (req, res) => {
       return;
     }
 
-    if (!prop.ical_url) {
+    const typedProp = prop as ICalPropRow;
+
+    if (!typedProp.ical_url) {
       res.status(400).json({ error: "Esta propiedad no tiene URL iCal configurada" });
       return;
     }
 
     const controller = new AbortController();
     const fetchTimeout = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(prop.ical_url, {
+    const response = await fetch(typedProp.ical_url, {
       headers: { "User-Agent": "BarmelRentalSync/1.0" },
       signal: controller.signal,
     });
@@ -178,11 +197,13 @@ router.post("/sync-ical/:propiedadId", async (req, res) => {
     const { data: existingReservas } = await supabase
       .from("reservas")
       .select("fecha_inicio, fecha_fin")
-      .eq("propiedad_id", prop.id)
+      .eq("propiedad_id", typedProp.id)
       .eq("origen", "ical");
 
     const existingSet = new Set(
-      (existingReservas ?? []).map((r: any) => `${r.fecha_inicio}|${r.fecha_fin}`)
+      ((existingReservas ?? []) as ExistingReservaRow[]).map(
+        (r) => `${r.fecha_inicio}|${r.fecha_fin}`
+      )
     );
 
     const newReservas = futureEvents.filter(
@@ -191,7 +212,7 @@ router.post("/sync-ical/:propiedadId", async (req, res) => {
 
     if (newReservas.length > 0) {
       const rows = newReservas.map(e => ({
-        propiedad_id: prop.id,
+        propiedad_id: typedProp.id,
         nombre_huesped: e.summary,
         fecha_inicio: e.dtstart,
         fecha_fin: e.dtend,
@@ -205,12 +226,13 @@ router.post("/sync-ical/:propiedadId", async (req, res) => {
     }
 
     res.json({
-      message: `Sincronización completada para ${prop.nombre}`,
+      message: `Sincronización completada para ${typedProp.nombre}`,
       synced: newReservas.length,
       total_eventos: futureEvents.length,
     });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error interno";
+    res.status(500).json({ error: message });
   }
 });
 
