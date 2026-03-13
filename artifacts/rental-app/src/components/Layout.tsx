@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Calendar, CircleDollarSign, Settings, BarChart3 } from "lucide-react";
+import { Home, Calendar, CalendarDays, CircleDollarSign, Settings, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRole } from "@/lib/roles";
@@ -8,6 +8,7 @@ import barmelLogo from "@assets/Barmel_Logo-01_1773315387886.jpg";
 const ALL_NAV_ITEMS = [
   { path: "/", label: "Inicio", icon: Home, adminOnly: true },
   { path: "/reservas", label: "Reservas", icon: Calendar, adminOnly: true },
+  { path: "/calendario", label: "Calendario", icon: CalendarDays, adminOnly: true },
   { path: "/gastos", label: "Gastos", icon: CircleDollarSign, adminOnly: false },
   { path: "/reportes", label: "Reportes", icon: BarChart3, adminOnly: true },
   { path: "/ajustes", label: "Ajustes", icon: Settings, adminOnly: false },

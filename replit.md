@@ -78,11 +78,13 @@ artifacts-monorepo/
 - `POST /api/expenses` - Create expense
 - `POST /api/sync-ical` - Sync all properties with iCal URLs (fetches iCal feeds, parses events, upserts reservas)
 - `POST /api/sync-ical/:propiedadId` - Sync a single property's iCal feed
+- `GET /api/export-ical/:propiedadId` - Export manual reservations as .ics file for blocking external calendars
 
 ## Frontend Pages
 
 - **Inicio** (`/`) - Dashboard with "Reservas Próximas" and "Inventario de Propiedades" button. Inventory shows vacacionales/mensuales with expandable cards for editing instrucciones and iCal URL per property, plus per-property sync button. WhatsApp button on each reservation card. Origin badge (Sync) for iCal-synced reservations.
 - **Reservas** (`/reservas`) - Calendar view with occupied dates highlighted, property selector (vacacionales), reservation list with WhatsApp buttons and origin badges, global "Sync iCal" button, and form to create/edit reservations with overlap validation
+- **Calendario** (`/calendario`) - Full-month master calendar with multi-property occupancy visualization, property filter toggles, date-range availability search, iCal reservation swap (property reassignment), and iCal export links
 - **Gastos** (`/gastos`) - Expense list from Supabase `gastos` table with category icons, property filter, monthly total summary, and form to register new expenses (categories: Luz, Agua, Roa, Limpieza, Mantenimiento, Otro)
 - **Ajustes** (`/ajustes`) - Settings page with profile, preferences
 

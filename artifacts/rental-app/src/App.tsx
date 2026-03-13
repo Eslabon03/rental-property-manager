@@ -11,6 +11,7 @@ import Reservas from "./pages/Reservas";
 import Gastos from "./pages/Gastos";
 import Reportes from "./pages/Reportes";
 import Ajustes from "./pages/Ajustes";
+import Calendario from "./pages/Calendario";
 
 import { supabase } from "./lib/supabase";
 import Login from "./Login";
@@ -31,6 +32,7 @@ function AdminRouter() {
       <Switch>
         <Route path="/" component={Inicio} />
         <Route path="/reservas" component={Reservas} />
+        <Route path="/calendario" component={Calendario} />
         <Route path="/gastos" component={Gastos} />
         <Route path="/reportes" component={Reportes} />
         <Route path="/ajustes" component={Ajustes} />
