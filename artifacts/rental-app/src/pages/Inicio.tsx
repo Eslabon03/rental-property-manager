@@ -648,7 +648,7 @@ function ReservaCard({ reserva }: { reserva: ReservaConPropiedad }) {
           </div>
         </div>
 
-        {(reserva.monto_bruto || reserva.monto_neto || (reserva.monto != null && Number(reserva.monto) > 0)) ? (
+        {(reserva.monto_bruto != null || reserva.monto_neto != null || (reserva.monto != null && Number(reserva.monto) > 0)) ? (
           <div className="flex items-center gap-3 text-xs">
             {reserva.monto_bruto != null && (
               <div>

@@ -282,7 +282,7 @@ export default function Reservas() {
                   </div>
                 </div>
 
-                {(r.monto_bruto || r.monto_neto || (r.monto != null && Number(r.monto) > 0)) ? (
+                {(r.monto_bruto != null || r.monto_neto != null || (r.monto != null && Number(r.monto) > 0)) ? (
                   <div className="flex items-center gap-3 mt-2 text-xs">
                     {r.monto_bruto != null && (
                       <div>
@@ -613,8 +613,8 @@ function EditReservationModal({
       fecha_inicio: reserva.fecha_inicio,
       fecha_fin: reserva.fecha_fin,
       monto: reserva.monto ? String(reserva.monto) : "",
-      monto_bruto: reserva.monto_bruto ? String(reserva.monto_bruto) : "",
-      monto_neto: reserva.monto_neto ? String(reserva.monto_neto) : "",
+      monto_bruto: reserva.monto_bruto != null ? String(reserva.monto_bruto) : "",
+      monto_neto: reserva.monto_neto != null ? String(reserva.monto_neto) : "",
     },
   });
 
