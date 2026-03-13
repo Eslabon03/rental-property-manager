@@ -132,18 +132,12 @@ export default function Limpieza() {
             creado_por: userEmail,
           });
         if (completionErr) throw completionErr;
-      } catch {
-        // limpiezas_completadas table may not exist yet — continue
-      }
 
-      try {
         const { data: insumos, error: fetchErr } = await supabase
           .from("inventario_insumos")
           .select("id, cantidad_actual, cantidad_por_limpieza");
 
-        if (fetchErr) throw fetchErr;
-
-        if (insumos && insumos.length > 0) {
+        if (!fetchErr && insumos && insumos.length > 0) {
           for (const item of insumos) {
             const nuevaCantidad = Math.max(
               0,
@@ -156,21 +150,18 @@ export default function Limpieza() {
             if (updateErr) throw updateErr;
           }
         }
+
+        setCompletedIds((prev) => new Set(prev).add(checkout.id));
+        queryClient.invalidateQueries({ queryKey: ["admin-insumos"] });
       } catch (err: unknown) {
-        const isTableMissing =
-          err instanceof Object &&
-          "code" in err &&
-          (err as { code: string }).code === "42P01";
-        if (!isTableMissing) {
-          setCompleteError(
-            "Error al deducir insumos. La limpieza se registró pero el inventario no se actualizó."
-          );
-        }
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Error al completar la limpieza. Intenta de nuevo.";
+        setCompleteError(message);
       }
 
-      setCompletedIds((prev) => new Set(prev).add(checkout.id));
       setCompletingId(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-insumos"] });
     },
     [queryClient, userEmail, evidenceUrls]
   );
