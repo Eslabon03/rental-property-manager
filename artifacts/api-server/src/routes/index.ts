@@ -6,6 +6,7 @@ import expensesRouter from "./expenses";
 import icalSyncRouter from "./ical-sync";
 import icalExportRouter from "./ical-export";
 import notificacionesRouter from "./notificaciones";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(expensesRouter);
 router.use(icalSyncRouter);
 router.use(icalExportRouter);
 router.use(notificacionesRouter);
+router.use(chatRouter);
 
 export default router;

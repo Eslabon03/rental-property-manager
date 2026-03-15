@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRole } from "@/lib/roles";
 import barmelLogo from "@assets/Barmel_Logo-01_1773315387886.jpg";
+import { AsistenteChat } from "./AsistenteChat";
 
 const ALL_NAV_ITEMS = [
   { path: "/", label: "Inicio", icon: Home, adminOnly: true },
@@ -84,6 +85,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      <AsistenteChat />
     </div>
   );
 }

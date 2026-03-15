@@ -93,6 +93,14 @@ artifacts-monorepo/
 - `GET /api/notificaciones/pendientes` - List pending check-out notifications (7-day and 1-day rules)
 - `POST /api/notificaciones/webhook` - Mark a notification as sent (with duplicate prevention via UNIQUE constraint)
 - `GET /api/notificaciones/enviadas` - List recently sent notifications (last 50)
+- `POST /api/chat` - AI assistant chat endpoint with SSE streaming, tool calling for Supabase queries (reservas, propiedades, mantenimiento_pendientes), security check rejects limpieza role
+
+## AI Assistant (Asistente Barmel)
+- Backend: `artifacts/api-server/src/routes/chat.ts` — OpenAI integration via Replit AI Integrations proxy (env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY`)
+- Frontend: `artifacts/rental-app/src/components/AsistenteChat.tsx` — floating chat bubble (bottom-right), slide-up panel with streaming responses
+- Security: admin-only (component returns null for limpieza role, API rejects limpieza emails with 403)
+- Tool calling: `consultar_reservas`, `consultar_propiedades`, `consultar_mantenimiento` — real-time Supabase queries
+- Model: gpt-4o with system prompt in Spanish for property management context
 
 ## Frontend Pages
 
