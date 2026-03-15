@@ -350,8 +350,15 @@ router.post(
       res.end();
     } catch (err: unknown) {
       console.error("[Chat] Error:", err);
-      const message =
-        err instanceof Error ? err.message : "Error en el asistente";
+      let message = "Error en el asistente. Intenta de nuevo en unos momentos.";
+      if (err instanceof Error) {
+        const errMsg = err.message;
+        if (errMsg.includes("quota") || errMsg.includes("rate") || errMsg.includes("429")) {
+          message = "Se alcanzó el límite de uso de la IA. Por favor espera unos minutos e intenta de nuevo.";
+        } else if (errMsg.includes("API key") || errMsg.includes("401") || errMsg.includes("403")) {
+          message = "Error de autenticación con el servicio de IA. Verifica la configuración de la API Key.";
+        }
+      }
       res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
