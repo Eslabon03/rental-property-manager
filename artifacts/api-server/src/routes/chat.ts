@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import {
   GoogleGenerativeAI,
-  type FunctionDeclarationSchemaType,
+  SchemaType,
   type FunctionDeclaration,
   type Content,
   type Part,
@@ -42,30 +42,30 @@ const toolDeclarations: FunctionDeclaration[] = [
     description:
       "Consulta reservaciones de propiedades. Puede filtrar por propiedad, rango de fechas, nombre de huésped, canal de renta. Útil para verificar disponibilidad, calcular ingresos, listar próximas reservas.",
     parameters: {
-      type: "OBJECT" as FunctionDeclarationSchemaType,
+      type: SchemaType.OBJECT,
       properties: {
         propiedad_id: {
-          type: "NUMBER" as FunctionDeclarationSchemaType,
+          type: SchemaType.NUMBER,
           description: "ID de la propiedad para filtrar",
         },
         fecha_inicio_desde: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Filtrar reservas que inician desde esta fecha (YYYY-MM-DD)",
         },
         fecha_fin_hasta: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Filtrar reservas que terminan hasta esta fecha (YYYY-MM-DD)",
         },
         nombre_huesped: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Buscar por nombre de huésped (búsqueda parcial)",
         },
         canal_renta: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Filtrar por canal: Airbnb, Booking, Directo, etc.",
         },
         limite: {
-          type: "NUMBER" as FunctionDeclarationSchemaType,
+          type: SchemaType.NUMBER,
           description: "Número máximo de resultados (default 20)",
         },
       },
@@ -76,18 +76,18 @@ const toolDeclarations: FunctionDeclaration[] = [
     description:
       "Lista las propiedades disponibles con sus detalles. Puede filtrar por tipo (vacacional/mensual), nombre, o estado de alquiler.",
     parameters: {
-      type: "OBJECT" as FunctionDeclarationSchemaType,
+      type: SchemaType.OBJECT,
       properties: {
         tipo: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Filtrar por tipo: vacacional o mensual",
         },
         nombre: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Buscar por nombre de propiedad (búsqueda parcial)",
         },
         esta_alquilada: {
-          type: "BOOLEAN" as FunctionDeclarationSchemaType,
+          type: SchemaType.BOOLEAN,
           description: "Filtrar por estado de alquiler: true = alquiladas, false = disponibles",
         },
       },
@@ -98,14 +98,14 @@ const toolDeclarations: FunctionDeclaration[] = [
     description:
       "Consulta reportes de mantenimiento pendientes o resueltos. Puede filtrar por propiedad o estado.",
     parameters: {
-      type: "OBJECT" as FunctionDeclarationSchemaType,
+      type: SchemaType.OBJECT,
       properties: {
         propiedad_id: {
-          type: "NUMBER" as FunctionDeclarationSchemaType,
+          type: SchemaType.NUMBER,
           description: "Filtrar por ID de propiedad",
         },
         estado: {
-          type: "STRING" as FunctionDeclarationSchemaType,
+          type: SchemaType.STRING,
           description: "Filtrar por estado: pendiente o resuelto",
         },
       },
