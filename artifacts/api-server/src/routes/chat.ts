@@ -16,14 +16,16 @@ const SYSTEM_PROMPT = `Eres el asistente virtual de Barmel, una empresa de gesti
 
 Responde siempre en español. Sé conciso, profesional y útil.
 
-Tienes acceso a herramientas para consultar la base de datos en tiempo real:
+Tienes acceso a herramientas para consultar y gestionar la base de datos en tiempo real:
 - verificar_disponibilidad: Para verificar qué propiedades están REALMENTE disponibles en una fecha o rango de fechas. Cruza propiedades con reservas activas para excluir las ocupadas.
 - consultar_reservas: Para buscar reservaciones, ver ingresos, listar próximas reservas
 - consultar_propiedades: Para ver la lista completa de propiedades con sus detalles (NO usar para verificar disponibilidad)
 - consultar_mantenimiento: Para revisar reportes de mantenimiento pendientes
+- crear_reserva: Para crear una nueva reservación en el sistema. Puedes buscar la propiedad por nombre.
 
 IMPORTANTE:
 - Para preguntas de DISPONIBILIDAD, usa SIEMPRE "verificar_disponibilidad". NUNCA uses "consultar_propiedades" para responder sobre disponibilidad.
+- Para CREAR RESERVAS: Antes de ejecutar "crear_reserva", SIEMPRE confirma los detalles con el usuario (propiedad, fechas check-in/check-out, nombre del huésped). Solo ejecuta la herramienta después de que el usuario confirme. Si el usuario no da un nombre de huésped, usa "Reserva vía Asistente".
 - Solo usa las herramientas cuando el usuario pregunte algo que requiera datos de la base de datos. Para saludos, preguntas generales o conversación casual, responde directamente SIN usar herramientas.
 
 Contexto de negocio:
@@ -138,6 +140,53 @@ const toolDeclarations: FunctionDeclaration[] = [
       },
     },
   },
+  {
+    name: "crear_reserva",
+    description:
+      "Crea una nueva reservación en el sistema. Verifica disponibilidad antes de insertar. IMPORTANTE: Confirma los detalles con el usuario ANTES de ejecutar esta herramienta.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        propiedad_nombre: {
+          type: SchemaType.STRING,
+          description: "Nombre (o parte del nombre) de la propiedad para buscar y reservar",
+        },
+        propiedad_id: {
+          type: SchemaType.NUMBER,
+          description: "ID exacto de la propiedad (si se conoce, tiene prioridad sobre propiedad_nombre)",
+        },
+        fecha_inicio: {
+          type: SchemaType.STRING,
+          description: "Fecha de check-in (YYYY-MM-DD). Requerido.",
+        },
+        fecha_fin: {
+          type: SchemaType.STRING,
+          description: "Fecha de check-out (YYYY-MM-DD). Requerido.",
+        },
+        nombre_huesped: {
+          type: SchemaType.STRING,
+          description: "Nombre del huésped. Si no se proporciona, se usa 'Reserva vía Asistente'.",
+        },
+        celular_huesped: {
+          type: SchemaType.STRING,
+          description: "Número de celular del huésped (opcional)",
+        },
+        canal_renta: {
+          type: SchemaType.STRING,
+          description: "Canal de la reserva: Directo, Airbnb, Booking, etc. Default: Directo",
+        },
+        monto_bruto: {
+          type: SchemaType.NUMBER,
+          description: "Monto bruto de la reserva en Lempiras (opcional)",
+        },
+        monto_neto: {
+          type: SchemaType.NUMBER,
+          description: "Monto neto de la reserva en Lempiras (opcional)",
+        },
+      },
+      required: ["fecha_inicio", "fecha_fin"],
+    },
+  },
 ];
 
 interface ReservasParams {
@@ -164,6 +213,18 @@ interface DisponibilidadParams {
   fecha?: string;
   fecha_fin?: string;
   tipo?: string;
+}
+
+interface CrearReservaParams {
+  propiedad_nombre?: string;
+  propiedad_id?: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  nombre_huesped?: string;
+  celular_huesped?: string;
+  canal_renta?: string;
+  monto_bruto?: number;
+  monto_neto?: number;
 }
 
 async function ejecutarConsultaReservas(
@@ -345,6 +406,116 @@ async function ejecutarVerificarDisponibilidad(
   };
 }
 
+function isValidDate(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
+async function ejecutarCrearReserva(
+  params: CrearReservaParams
+): Promise<Record<string, unknown>> {
+  if (!supabase) return { error: "Supabase no configurado" };
+
+  if (!params.fecha_inicio || !params.fecha_fin) {
+    return { error: "Las fechas de check-in (fecha_inicio) y check-out (fecha_fin) son obligatorias." };
+  }
+
+  if (!isValidDate(params.fecha_inicio) || !isValidDate(params.fecha_fin)) {
+    return { error: "Las fechas deben estar en formato válido YYYY-MM-DD (ejemplo: 2026-03-20)." };
+  }
+
+  if (params.fecha_inicio >= params.fecha_fin) {
+    return { error: "La fecha de check-in debe ser anterior a la fecha de check-out." };
+  }
+
+  let propiedadId = params.propiedad_id;
+  let propiedadNombre = "";
+
+  if (!propiedadId && params.propiedad_nombre) {
+    const { data: props, error: propError } = await supabase
+      .from("propiedades")
+      .select("id, nombre")
+      .ilike("nombre", `%${params.propiedad_nombre}%`)
+      .limit(5);
+
+    if (propError) return { error: propError.message };
+    if (!props || props.length === 0) {
+      return { error: `No se encontró ninguna propiedad con el nombre "${params.propiedad_nombre}". Verifica el nombre e intenta de nuevo.` };
+    }
+    if (props.length > 1) {
+      return {
+        error: "Se encontraron múltiples propiedades. Por favor especifica cuál:",
+        propiedades_encontradas: props.map((p) => ({ id: p.id, nombre: p.nombre })),
+      };
+    }
+    propiedadId = props[0].id as number;
+    propiedadNombre = props[0].nombre as string;
+  } else if (propiedadId) {
+    const { data: prop, error: propError } = await supabase
+      .from("propiedades")
+      .select("id, nombre")
+      .eq("id", propiedadId)
+      .single();
+
+    if (propError || !prop) {
+      return { error: `No se encontró la propiedad con ID ${propiedadId}.` };
+    }
+    propiedadNombre = prop.nombre as string;
+  } else {
+    return { error: "Debes proporcionar el nombre o ID de la propiedad." };
+  }
+
+  const { data: conflictos, error: confError } = await supabase
+    .from("reservas")
+    .select("id, fecha_inicio, fecha_fin, nombre_huesped")
+    .eq("propiedad_id", propiedadId)
+    .lt("fecha_inicio", params.fecha_fin)
+    .gt("fecha_fin", params.fecha_inicio);
+
+  if (confError) return { error: confError.message };
+  if (conflictos && conflictos.length > 0) {
+    return {
+      error: `La propiedad "${propiedadNombre}" ya tiene una reserva que se traslapa en esas fechas.`,
+      conflictos: conflictos.map((c) => ({
+        id: c.id,
+        fecha_inicio: c.fecha_inicio,
+        fecha_fin: c.fecha_fin,
+        nombre_huesped: c.nombre_huesped,
+      })),
+    };
+  }
+
+  const nuevaReserva = {
+    propiedad_id: propiedadId,
+    fecha_inicio: params.fecha_inicio,
+    fecha_fin: params.fecha_fin,
+    nombre_huesped: params.nombre_huesped || "Reserva vía Asistente",
+    celular_huesped: params.celular_huesped || null,
+    canal_renta: params.canal_renta || "Directo",
+    monto_bruto: params.monto_bruto ?? 0,
+    monto_neto: params.monto_neto ?? 0,
+    origen: "manual",
+  };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("reservas")
+    .insert(nuevaReserva)
+    .select("id, propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, canal_renta, monto_bruto, monto_neto")
+    .single();
+
+  if (insertError) return { error: `Error al crear la reserva: ${insertError.message}` };
+
+  console.log(`[Chat] Reserva creada: ID=${(inserted as Record<string, unknown>).id}, propiedad="${propiedadNombre}", ${params.fecha_inicio} → ${params.fecha_fin}`);
+
+  return {
+    exito: true,
+    mensaje: `Reserva creada exitosamente en "${propiedadNombre}"`,
+    reserva: inserted,
+  };
+}
+
 async function ejecutarTool(
   name: string,
   args: Record<string, unknown>
@@ -358,6 +529,8 @@ async function ejecutarTool(
       return ejecutarConsultaMantenimiento(args as MantenimientoParams);
     case "verificar_disponibilidad":
       return ejecutarVerificarDisponibilidad(args as DisponibilidadParams);
+    case "crear_reserva":
+      return ejecutarCrearReserva(args as CrearReservaParams);
     default:
       return { error: `Herramienta desconocida: ${name}` };
   }

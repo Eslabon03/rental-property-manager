@@ -99,8 +99,10 @@ artifacts-monorepo/
 - Backend: `artifacts/api-server/src/routes/chat.ts` — Google Gemini via `@google/generative-ai` SDK (env var: `GEMINI_API_KEY`)
 - Frontend: `artifacts/rental-app/src/components/AsistenteChat.tsx` — floating chat bubble (bottom-right), slide-up panel with streaming responses
 - Security: admin-only (component returns null for limpieza role, API rejects limpieza emails with 403)
-- Tool calling: `consultar_reservas`, `consultar_propiedades`, `consultar_mantenimiento` — real-time Supabase queries via Gemini FunctionDeclaration format
-- Model: gemini-2.5-flash with system prompt in Spanish for property management context
+- Tool calling: `consultar_reservas`, `consultar_propiedades`, `consultar_mantenimiento`, `verificar_disponibilidad`, `crear_reserva` — real-time Supabase queries and mutations via Gemini FunctionDeclaration format
+- `verificar_disponibilidad`: Cross-references propiedades with reservas using date overlap logic to return available/occupied lists
+- `crear_reserva`: Creates reservations via AI — resolves property by name/ID, validates dates (YYYY-MM-DD regex + calendar validity), checks for overlapping reservations, inserts into reservas table. Default guest name: "Reserva vía Asistente", default canal: "Directo"
+- Model: gemini-2.5-flash with system prompt in Spanish for property management context; system prompt instructs AI to confirm booking details before executing crear_reserva
 
 ## Frontend Pages
 
