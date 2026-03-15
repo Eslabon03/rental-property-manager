@@ -307,30 +307,15 @@ router.post(
 
       const chat = model.startChat({ history });
 
-      const firstStream = await chat.sendMessageStream(lastMessage.content);
-      const collectedParts: Part[] = [];
-      let hasToolCalls = false;
+      const firstResult = await chat.sendMessage(lastMessage.content);
+      const firstParts = firstResult.response.candidates?.[0]?.content?.parts ?? [];
 
-      for await (const chunk of firstStream.stream) {
-        const parts = chunk.candidates?.[0]?.content?.parts ?? [];
-        for (const part of parts) {
-          collectedParts.push(part);
-          if ("functionCall" in part && part.functionCall) {
-            hasToolCalls = true;
-          } else if ("text" in part && typeof part.text === "string" && part.text) {
-            if (!hasToolCalls) {
-              res.write(`data: ${JSON.stringify({ content: part.text })}\n\n`);
-            }
-          }
-        }
-      }
+      const functionCalls = firstParts.filter(
+        (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
+          "functionCall" in p && p.functionCall !== undefined
+      );
 
-      if (hasToolCalls) {
-        const functionCalls = collectedParts.filter(
-          (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
-            "functionCall" in p && p.functionCall !== undefined
-        );
-
+      if (functionCalls.length > 0) {
         const functionResponses: Part[] = [];
 
         for (const fc of functionCalls) {
@@ -353,6 +338,11 @@ router.post(
           if (text) {
             res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
           }
+        }
+      } else {
+        const text = firstResult.response.text();
+        if (text) {
+          res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
         }
       }
 
