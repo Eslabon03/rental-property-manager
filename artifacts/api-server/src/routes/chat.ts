@@ -307,16 +307,30 @@ router.post(
 
       const chat = model.startChat({ history });
 
-      const firstResult = await chat.sendMessage(lastMessage.content);
-      const firstResponse = firstResult.response;
-      const firstCandidateParts = firstResponse.candidates?.[0]?.content?.parts ?? [];
+      const firstStream = await chat.sendMessageStream(lastMessage.content);
+      const collectedParts: Part[] = [];
+      let hasToolCalls = false;
 
-      const functionCalls = firstCandidateParts.filter(
-        (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
-          "functionCall" in p && p.functionCall !== undefined
-      );
+      for await (const chunk of firstStream.stream) {
+        const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+        for (const part of parts) {
+          collectedParts.push(part);
+          if ("functionCall" in part && part.functionCall) {
+            hasToolCalls = true;
+          } else if ("text" in part && typeof part.text === "string" && part.text) {
+            if (!hasToolCalls) {
+              res.write(`data: ${JSON.stringify({ content: part.text })}\n\n`);
+            }
+          }
+        }
+      }
 
-      if (functionCalls.length > 0) {
+      if (hasToolCalls) {
+        const functionCalls = collectedParts.filter(
+          (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
+            "functionCall" in p && p.functionCall !== undefined
+        );
+
         const functionResponses: Part[] = [];
 
         for (const fc of functionCalls) {
@@ -335,16 +349,6 @@ router.post(
         const secondResult = await chat.sendMessageStream(functionResponses);
 
         for await (const chunk of secondResult.stream) {
-          const text = chunk.text();
-          if (text) {
-            res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-          }
-        }
-      } else {
-        const streamChat = model.startChat({ history });
-        const streamResult = await streamChat.sendMessageStream(lastMessage.content);
-
-        for await (const chunk of streamResult.stream) {
           const text = chunk.text();
           if (text) {
             res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
