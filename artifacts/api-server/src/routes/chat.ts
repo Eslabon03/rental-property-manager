@@ -17,11 +17,14 @@ const SYSTEM_PROMPT = `Eres el asistente virtual de Barmel, una empresa de gesti
 Responde siempre en español. Sé conciso, profesional y útil.
 
 Tienes acceso a herramientas para consultar la base de datos en tiempo real:
-- consultar_reservas: Para buscar reservaciones, verificar disponibilidad, ver ingresos
-- consultar_propiedades: Para ver las propiedades disponibles, sus tipos y detalles
+- verificar_disponibilidad: Para verificar qué propiedades están REALMENTE disponibles en una fecha o rango de fechas. Cruza propiedades con reservas activas para excluir las ocupadas.
+- consultar_reservas: Para buscar reservaciones, ver ingresos, listar próximas reservas
+- consultar_propiedades: Para ver la lista completa de propiedades con sus detalles (NO usar para verificar disponibilidad)
 - consultar_mantenimiento: Para revisar reportes de mantenimiento pendientes
 
-IMPORTANTE: Solo usa las herramientas cuando el usuario pregunte algo que requiera datos de la base de datos (reservas, propiedades, ingresos, disponibilidad, mantenimiento). Para saludos, preguntas generales o conversación casual, responde directamente SIN usar herramientas.
+IMPORTANTE:
+- Para preguntas de DISPONIBILIDAD, usa SIEMPRE "verificar_disponibilidad". NUNCA uses "consultar_propiedades" para responder sobre disponibilidad.
+- Solo usa las herramientas cuando el usuario pregunte algo que requiera datos de la base de datos. Para saludos, preguntas generales o conversación casual, responde directamente SIN usar herramientas.
 
 Contexto de negocio:
 - Las propiedades son de tipo "vacacional" (alquiler corto plazo) o "mensual" (renta fija)
@@ -113,6 +116,28 @@ const toolDeclarations: FunctionDeclaration[] = [
       },
     },
   },
+  {
+    name: "verificar_disponibilidad",
+    description:
+      "Verifica qué propiedades están REALMENTE disponibles (sin reservas) para una fecha o rango de fechas. Cruza la tabla de propiedades con reservas activas y excluye las ocupadas. USAR SIEMPRE para preguntas de disponibilidad.",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        fecha: {
+          type: SchemaType.STRING,
+          description: "Fecha específica para verificar disponibilidad (YYYY-MM-DD). Si no se proporciona, usa la fecha de hoy.",
+        },
+        fecha_fin: {
+          type: SchemaType.STRING,
+          description: "Fecha fin del rango para verificar disponibilidad (YYYY-MM-DD). Si no se proporciona, se usa solo la fecha de inicio.",
+        },
+        tipo: {
+          type: SchemaType.STRING,
+          description: "Filtrar por tipo de propiedad: vacacional o mensual",
+        },
+      },
+    },
+  },
 ];
 
 interface ReservasParams {
@@ -133,6 +158,12 @@ interface PropiedadesParams {
 interface MantenimientoParams {
   propiedad_id?: number;
   estado?: string;
+}
+
+interface DisponibilidadParams {
+  fecha?: string;
+  fecha_fin?: string;
+  tipo?: string;
 }
 
 async function ejecutarConsultaReservas(
@@ -217,6 +248,103 @@ async function ejecutarConsultaMantenimiento(
   return { total: (data ?? []).length, mantenimiento: data ?? [] };
 }
 
+async function ejecutarVerificarDisponibilidad(
+  params: DisponibilidadParams
+): Promise<Record<string, unknown>> {
+  if (!supabase) return { error: "Supabase no configurado" };
+
+  const today = new Date().toISOString().split("T")[0];
+  const fechaInicio = params.fecha ?? today;
+  const fechaFin = params.fecha_fin ?? fechaInicio;
+
+  let propQuery = supabase
+    .from("propiedades")
+    .select("id, nombre, tipo, pais, renta_fija_lps, esta_alquilada, ical_url")
+    .order("nombre");
+
+  if (params.tipo) {
+    propQuery = propQuery.eq("tipo", params.tipo);
+  }
+
+  const { data: propiedades, error: propError } = await propQuery;
+  if (propError) return { error: propError.message };
+  if (!propiedades || propiedades.length === 0) {
+    return { total_disponibles: 0, disponibles: [], total_ocupadas: 0, ocupadas: [] };
+  }
+
+  const propIds = propiedades.map((p) => p.id);
+
+  const { data: reservasOcupadas, error: resError } = await supabase
+    .from("reservas")
+    .select("propiedad_id, fecha_inicio, fecha_fin, nombre_huesped, canal_renta")
+    .in("propiedad_id", propIds)
+    .lte("fecha_inicio", fechaFin)
+    .gte("fecha_fin", fechaInicio);
+
+  if (resError) return { error: resError.message };
+
+  const idsOcupados = new Set(
+    (reservasOcupadas ?? []).map((r) => r.propiedad_id as number)
+  );
+
+  interface PropInfo {
+    id: number;
+    nombre: string;
+    tipo: string;
+    pais: string | null;
+    renta_fija_lps: number | null;
+  }
+
+  interface PropOcupada extends PropInfo {
+    reserva_actual: {
+      nombre_huesped: string | null;
+      canal_renta: string | null;
+      fecha_inicio: string;
+      fecha_fin: string;
+    };
+  }
+
+  const disponibles: PropInfo[] = [];
+  const ocupadas: PropOcupada[] = [];
+
+  for (const p of propiedades) {
+    if (idsOcupados.has(p.id as number)) {
+      const reserva = (reservasOcupadas ?? []).find(
+        (r) => r.propiedad_id === p.id
+      );
+      ocupadas.push({
+        id: p.id as number,
+        nombre: p.nombre as string,
+        tipo: p.tipo as string,
+        pais: p.pais as string | null,
+        renta_fija_lps: p.renta_fija_lps as number | null,
+        reserva_actual: {
+          nombre_huesped: (reserva?.nombre_huesped as string) ?? null,
+          canal_renta: (reserva?.canal_renta as string) ?? null,
+          fecha_inicio: (reserva?.fecha_inicio as string) ?? "",
+          fecha_fin: (reserva?.fecha_fin as string) ?? "",
+        },
+      });
+    } else {
+      disponibles.push({
+        id: p.id as number,
+        nombre: p.nombre as string,
+        tipo: p.tipo as string,
+        pais: p.pais as string | null,
+        renta_fija_lps: p.renta_fija_lps as number | null,
+      });
+    }
+  }
+
+  return {
+    fecha_consultada: fechaInicio === fechaFin ? fechaInicio : `${fechaInicio} a ${fechaFin}`,
+    total_disponibles: disponibles.length,
+    disponibles,
+    total_ocupadas: ocupadas.length,
+    ocupadas,
+  };
+}
+
 async function ejecutarTool(
   name: string,
   args: Record<string, unknown>
@@ -228,6 +356,8 @@ async function ejecutarTool(
       return ejecutarConsultaPropiedades(args as PropiedadesParams);
     case "consultar_mantenimiento":
       return ejecutarConsultaMantenimiento(args as MantenimientoParams);
+    case "verificar_disponibilidad":
+      return ejecutarVerificarDisponibilidad(args as DisponibilidadParams);
     default:
       return { error: `Herramienta desconocida: ${name}` };
   }
