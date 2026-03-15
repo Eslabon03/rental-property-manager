@@ -1,13 +1,14 @@
 import { Router, type Request, type Response } from "express";
-import OpenAI from "openai";
+import {
+  GoogleGenerativeAI,
+  type FunctionDeclarationSchemaType,
+  type FunctionDeclaration,
+  type Content,
+  type Part,
+} from "@google/generative-ai";
 import { supabase } from "../lib/supabase";
 
 const router = Router();
-
-const openai = new OpenAI({
-  baseURL: process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"],
-  apiKey: process.env["AI_INTEGRATIONS_OPENAI_API_KEY"],
-});
 
 const SYSTEM_PROMPT = `Eres el asistente virtual de Barmel, una empresa de gestión de propiedades de alquiler en Honduras. Tu nombre es "Asistente Barmel".
 
@@ -31,94 +32,82 @@ Contexto de negocio:
 Formatea los montos como "L X,XXX.XX" y las fechas de forma legible en español.`;
 
 interface ChatMessage {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant";
   content: string;
 }
 
-const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+const toolDeclarations: FunctionDeclaration[] = [
   {
-    type: "function",
-    function: {
-      name: "consultar_reservas",
-      description:
-        "Consulta reservaciones de propiedades. Puede filtrar por propiedad, rango de fechas, nombre de huésped, canal de renta. Útil para verificar disponibilidad, calcular ingresos, listar próximas reservas.",
-      parameters: {
-        type: "object",
-        properties: {
-          propiedad_id: {
-            type: "number",
-            description: "ID de la propiedad para filtrar",
-          },
-          fecha_inicio_desde: {
-            type: "string",
-            description: "Filtrar reservas que inician desde esta fecha (YYYY-MM-DD)",
-          },
-          fecha_fin_hasta: {
-            type: "string",
-            description: "Filtrar reservas que terminan hasta esta fecha (YYYY-MM-DD)",
-          },
-          nombre_huesped: {
-            type: "string",
-            description: "Buscar por nombre de huésped (búsqueda parcial)",
-          },
-          canal_renta: {
-            type: "string",
-            description: "Filtrar por canal: Airbnb, Booking, Directo, etc.",
-          },
-          limite: {
-            type: "number",
-            description: "Número máximo de resultados (default 20)",
-          },
+    name: "consultar_reservas",
+    description:
+      "Consulta reservaciones de propiedades. Puede filtrar por propiedad, rango de fechas, nombre de huésped, canal de renta. Útil para verificar disponibilidad, calcular ingresos, listar próximas reservas.",
+    parameters: {
+      type: "OBJECT" as FunctionDeclarationSchemaType,
+      properties: {
+        propiedad_id: {
+          type: "NUMBER" as FunctionDeclarationSchemaType,
+          description: "ID de la propiedad para filtrar",
         },
-        required: [],
+        fecha_inicio_desde: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Filtrar reservas que inician desde esta fecha (YYYY-MM-DD)",
+        },
+        fecha_fin_hasta: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Filtrar reservas que terminan hasta esta fecha (YYYY-MM-DD)",
+        },
+        nombre_huesped: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Buscar por nombre de huésped (búsqueda parcial)",
+        },
+        canal_renta: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Filtrar por canal: Airbnb, Booking, Directo, etc.",
+        },
+        limite: {
+          type: "NUMBER" as FunctionDeclarationSchemaType,
+          description: "Número máximo de resultados (default 20)",
+        },
       },
     },
   },
   {
-    type: "function",
-    function: {
-      name: "consultar_propiedades",
-      description:
-        "Lista las propiedades disponibles con sus detalles. Puede filtrar por tipo (vacacional/mensual), nombre, o estado de alquiler.",
-      parameters: {
-        type: "object",
-        properties: {
-          tipo: {
-            type: "string",
-            description: "Filtrar por tipo: vacacional o mensual",
-          },
-          nombre: {
-            type: "string",
-            description: "Buscar por nombre de propiedad (búsqueda parcial)",
-          },
-          esta_alquilada: {
-            type: "boolean",
-            description: "Filtrar por estado de alquiler: true = alquiladas, false = disponibles",
-          },
+    name: "consultar_propiedades",
+    description:
+      "Lista las propiedades disponibles con sus detalles. Puede filtrar por tipo (vacacional/mensual), nombre, o estado de alquiler.",
+    parameters: {
+      type: "OBJECT" as FunctionDeclarationSchemaType,
+      properties: {
+        tipo: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Filtrar por tipo: vacacional o mensual",
         },
-        required: [],
+        nombre: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Buscar por nombre de propiedad (búsqueda parcial)",
+        },
+        esta_alquilada: {
+          type: "BOOLEAN" as FunctionDeclarationSchemaType,
+          description: "Filtrar por estado de alquiler: true = alquiladas, false = disponibles",
+        },
       },
     },
   },
   {
-    type: "function",
-    function: {
-      name: "consultar_mantenimiento",
-      description:
-        "Consulta reportes de mantenimiento pendientes o resueltos. Puede filtrar por propiedad o estado.",
-      parameters: {
-        type: "object",
-        properties: {
-          propiedad_id: {
-            type: "number",
-            description: "Filtrar por ID de propiedad",
-          },
-          estado: {
-            type: "string",
-            description: "Filtrar por estado: pendiente o resuelto",
-          },
+    name: "consultar_mantenimiento",
+    description:
+      "Consulta reportes de mantenimiento pendientes o resueltos. Puede filtrar por propiedad o estado.",
+    parameters: {
+      type: "OBJECT" as FunctionDeclarationSchemaType,
+      properties: {
+        propiedad_id: {
+          type: "NUMBER" as FunctionDeclarationSchemaType,
+          description: "Filtrar por ID de propiedad",
         },
-        required: [],
+        estado: {
+          type: "STRING" as FunctionDeclarationSchemaType,
+          description: "Filtrar por estado: pendiente o resuelto",
+        },
       },
     },
   },
@@ -146,8 +135,8 @@ interface MantenimientoParams {
 
 async function ejecutarConsultaReservas(
   params: ReservasParams
-): Promise<string> {
-  if (!supabase) return JSON.stringify({ error: "Supabase no configurado" });
+): Promise<Record<string, unknown>> {
+  if (!supabase) return { error: "Supabase no configurado" };
 
   let query = supabase
     .from("reservas")
@@ -174,14 +163,14 @@ async function ejecutarConsultaReservas(
   }
 
   const { data, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ total: (data ?? []).length, reservas: data ?? [] });
+  if (error) return { error: error.message };
+  return { total: (data ?? []).length, reservas: data ?? [] };
 }
 
 async function ejecutarConsultaPropiedades(
   params: PropiedadesParams
-): Promise<string> {
-  if (!supabase) return JSON.stringify({ error: "Supabase no configurado" });
+): Promise<Record<string, unknown>> {
+  if (!supabase) return { error: "Supabase no configurado" };
 
   let query = supabase
     .from("propiedades")
@@ -199,17 +188,14 @@ async function ejecutarConsultaPropiedades(
   }
 
   const { data, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({
-    total: (data ?? []).length,
-    propiedades: data ?? [],
-  });
+  if (error) return { error: error.message };
+  return { total: (data ?? []).length, propiedades: data ?? [] };
 }
 
 async function ejecutarConsultaMantenimiento(
   params: MantenimientoParams
-): Promise<string> {
-  if (!supabase) return JSON.stringify({ error: "Supabase no configurado" });
+): Promise<Record<string, unknown>> {
+  if (!supabase) return { error: "Supabase no configurado" };
 
   let query = supabase
     .from("mantenimiento_pendientes")
@@ -225,39 +211,34 @@ async function ejecutarConsultaMantenimiento(
   }
 
   const { data, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({
-    total: (data ?? []).length,
-    mantenimiento: data ?? [],
-  });
+  if (error) return { error: error.message };
+  return { total: (data ?? []).length, mantenimiento: data ?? [] };
 }
 
 async function ejecutarTool(
   name: string,
-  args: string
-): Promise<string> {
-  const parsed = JSON.parse(args) as Record<string, unknown>;
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   switch (name) {
     case "consultar_reservas":
-      return ejecutarConsultaReservas(parsed as ReservasParams);
+      return ejecutarConsultaReservas(args as ReservasParams);
     case "consultar_propiedades":
-      return ejecutarConsultaPropiedades(parsed as PropiedadesParams);
+      return ejecutarConsultaPropiedades(args as PropiedadesParams);
     case "consultar_mantenimiento":
-      return ejecutarConsultaMantenimiento(parsed as MantenimientoParams);
+      return ejecutarConsultaMantenimiento(args as MantenimientoParams);
     default:
-      return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
+      return { error: `Herramienta desconocida: ${name}` };
   }
 }
 
 router.post(
   "/chat",
   async (req: Request, res: Response): Promise<void> => {
-    const baseUrl = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
-    const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
+    const geminiKey = process.env["GEMINI_API_KEY"];
 
-    if (!baseUrl || !apiKey) {
+    if (!geminiKey) {
       res.status(503).json({
-        error: "AI integration not configured",
+        error: "GEMINI_API_KEY no configurada. Agrega tu API Key en los Secrets de Replit.",
       });
       return;
     }
@@ -304,77 +285,69 @@ router.post(
     res.setHeader("Connection", "keep-alive");
 
     try {
-      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...body.messages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
-      ];
-
-      const firstResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        max_completion_tokens: 4096,
-        messages,
-        tools,
-        tool_choice: "auto",
+      const genAI = new GoogleGenerativeAI(geminiKey);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ functionDeclarations: toolDeclarations }],
       });
 
-      const firstChoice = firstResponse.choices[0];
-      if (!firstChoice) {
-        res.write(`data: ${JSON.stringify({ error: "No response from AI" })}\n\n`);
+      const history: Content[] = body.messages.slice(0, -1).map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+      const lastMessage = body.messages[body.messages.length - 1];
+      if (!lastMessage) {
+        res.write(`data: ${JSON.stringify({ error: "No message provided" })}\n\n`);
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
         return;
       }
 
-      if (firstChoice.message.tool_calls && firstChoice.message.tool_calls.length > 0) {
-        const toolCall = firstChoice.message.tool_calls[0];
-        if (!toolCall || toolCall.type !== "function") {
-          res.write(`data: ${JSON.stringify({ error: "Invalid tool call" })}\n\n`);
-          res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-          res.end();
-          return;
+      const chat = model.startChat({ history });
+
+      const firstResult = await chat.sendMessage(lastMessage.content);
+      const firstResponse = firstResult.response;
+      const firstCandidateParts = firstResponse.candidates?.[0]?.content?.parts ?? [];
+
+      const functionCalls = firstCandidateParts.filter(
+        (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
+          "functionCall" in p && p.functionCall !== undefined
+      );
+
+      if (functionCalls.length > 0) {
+        const functionResponses: Part[] = [];
+
+        for (const fc of functionCalls) {
+          const result = await ejecutarTool(
+            fc.functionCall.name,
+            fc.functionCall.args ?? {}
+          );
+          functionResponses.push({
+            functionResponse: {
+              name: fc.functionCall.name,
+              response: result,
+            },
+          });
         }
 
-        const toolResult = await ejecutarTool(
-          toolCall.function.name,
-          toolCall.function.arguments
+        const secondResult = await chat.sendMessageStream(functionResponses);
+
+        for await (const chunk of secondResult.stream) {
+          const text = chunk.text();
+          if (text) {
+            res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+          }
+        }
+      } else {
+        const textParts = firstCandidateParts.filter(
+          (p): p is Part & { text: string } => "text" in p && typeof p.text === "string"
         );
 
-        messages.push(firstChoice.message);
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: toolResult,
-        });
-
-        const stream = await openai.chat.completions.create({
-          model: "gpt-4o",
-          max_completion_tokens: 4096,
-          messages,
-          stream: true,
-        });
-
-        for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          }
-        }
-      } else if (firstChoice.message.content) {
-        const stream = await openai.chat.completions.create({
-          model: "gpt-4o",
-          max_completion_tokens: 4096,
-          messages,
-          stream: true,
-        });
-
-        for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            res.write(`data: ${JSON.stringify({ content })}\n\n`);
-          }
+        if (textParts.length > 0) {
+          const fullText = textParts.map((p) => p.text).join("");
+          res.write(`data: ${JSON.stringify({ content: fullText })}\n\n`);
         }
       }
 

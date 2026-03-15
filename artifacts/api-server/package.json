@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.99.1",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
@@ -16,8 +17,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
-    "ical.js": "^2.2.1",
-    "openai": "^6.29.0"
+    "ical.js": "^2.2.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
