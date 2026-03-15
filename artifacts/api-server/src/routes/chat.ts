@@ -79,7 +79,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "consultar_propiedades",
       description:
-        "Lista las propiedades disponibles con sus detalles. Puede filtrar por tipo (vacacional/mensual) o buscar por nombre.",
+        "Lista las propiedades disponibles con sus detalles. Puede filtrar por tipo (vacacional/mensual), nombre, o estado de alquiler.",
       parameters: {
         type: "object",
         properties: {
@@ -90,6 +90,10 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           nombre: {
             type: "string",
             description: "Buscar por nombre de propiedad (búsqueda parcial)",
+          },
+          esta_alquilada: {
+            type: "boolean",
+            description: "Filtrar por estado de alquiler: true = alquiladas, false = disponibles",
           },
         },
         required: [],
@@ -132,6 +136,7 @@ interface ReservasParams {
 interface PropiedadesParams {
   tipo?: string;
   nombre?: string;
+  esta_alquilada?: boolean;
 }
 
 interface MantenimientoParams {
@@ -188,6 +193,9 @@ async function ejecutarConsultaPropiedades(
   }
   if (params.nombre) {
     query = query.ilike("nombre", `%${params.nombre}%`);
+  }
+  if (typeof params.esta_alquilada === "boolean") {
+    query = query.eq("esta_alquilada", params.esta_alquilada);
   }
 
   const { data, error } = await query;
@@ -254,23 +262,40 @@ router.post(
       return;
     }
 
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Token de autenticación requerido" });
+      return;
+    }
+
+    if (!supabase) {
+      res.status(503).json({ error: "Supabase no configurado" });
+      return;
+    }
+
+    const token = authHeader.slice(7);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      res.status(401).json({ error: "Token inválido o expirado" });
+      return;
+    }
+
+    const userEmail = user.email ?? "";
+    if (userEmail.toLowerCase().includes("limpieza")) {
+      res.status(403).json({ error: "Acceso no autorizado" });
+      return;
+    }
+
     const body = req.body as {
       messages?: ChatMessage[];
-      userEmail?: string;
     };
 
     if (!body.messages || !Array.isArray(body.messages)) {
       res.status(400).json({ error: "messages array is required" });
-      return;
-    }
-
-    if (!body.userEmail || typeof body.userEmail !== "string") {
-      res.status(401).json({ error: "userEmail is required" });
-      return;
-    }
-
-    if (body.userEmail.toLowerCase().includes("limpieza")) {
-      res.status(403).json({ error: "Acceso no autorizado" });
       return;
     }
 

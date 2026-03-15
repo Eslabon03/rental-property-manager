@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle } from "lucide-react";
-import { useRole, useUserEmail } from "@/lib/roles";
+import { useRole } from "@/lib/roles";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,7 +11,6 @@ interface Message {
 
 export function AsistenteChat() {
   const role = useRole();
-  const email = useUserEmail();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -50,12 +50,24 @@ export function AsistenteChat() {
     setError(null);
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setError("Sesión expirada. Inicia sesión nuevamente.");
+        setLoading(false);
+        return;
+      }
+
       const resp = await fetch(`${BASE_URL}api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           messages: nuevosMensajes,
-          userEmail: email,
         }),
       });
 
