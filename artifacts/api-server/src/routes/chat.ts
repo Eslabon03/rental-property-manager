@@ -341,13 +341,14 @@ router.post(
           }
         }
       } else {
-        const textParts = firstCandidateParts.filter(
-          (p): p is Part & { text: string } => "text" in p && typeof p.text === "string"
-        );
+        const streamChat = model.startChat({ history });
+        const streamResult = await streamChat.sendMessageStream(lastMessage.content);
 
-        if (textParts.length > 0) {
-          const fullText = textParts.map((p) => p.text).join("");
-          res.write(`data: ${JSON.stringify({ content: fullText })}\n\n`);
+        for await (const chunk of streamResult.stream) {
+          const text = chunk.text();
+          if (text) {
+            res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+          }
         }
       }
 
