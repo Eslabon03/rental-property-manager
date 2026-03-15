@@ -330,7 +330,7 @@ router.post(
     try {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         systemInstruction: SYSTEM_PROMPT,
         tools: [{ functionDeclarations: toolDeclarations }],
       });
@@ -398,15 +398,25 @@ router.post(
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (err: unknown) {
-      console.error("[Chat] Error:", err);
-      let message = "Error en el asistente. Intenta de nuevo en unos momentos.";
-      if (err instanceof Error) {
-        const errMsg = err.message;
-        if (errMsg.includes("quota") || errMsg.includes("rate") || errMsg.includes("429")) {
-          message = "Se alcanzó el límite de uso de la IA. Por favor espera unos minutos e intenta de nuevo.";
-        } else if (errMsg.includes("API key") || errMsg.includes("401") || errMsg.includes("403")) {
-          message = "Error de autenticación con el servicio de IA. Verifica la configuración de la API Key.";
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[Chat] Error (raw): ${rawMessage}`);
+      if (err instanceof Error && "errorDetails" in err) {
+        console.error("[Chat] Error details:", JSON.stringify((err as Record<string, unknown>).errorDetails));
+      }
+
+      let message: string;
+      if (rawMessage.includes("429") || rawMessage.includes("quota")) {
+        if (rawMessage.includes("PerDay")) {
+          message = "Se agotó la cuota diaria de la IA. El límite se renueva mañana, o puedes activar facturación en Google AI Studio.";
+        } else {
+          message = "Demasiadas solicitudes. Espera un minuto e intenta de nuevo.";
         }
+      } else if (rawMessage.includes("API key") || rawMessage.includes("PERMISSION_DENIED")) {
+        message = "Error de autenticación con Gemini. Verifica tu API Key en los Secrets.";
+      } else if (rawMessage.includes("not found") || rawMessage.includes("404")) {
+        message = "Modelo de IA no disponible. Contacta soporte.";
+      } else {
+        message = `Error del asistente: ${rawMessage.slice(0, 200)}`;
       }
       res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

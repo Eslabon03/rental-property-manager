@@ -100,7 +100,7 @@ artifacts-monorepo/
 - Frontend: `artifacts/rental-app/src/components/AsistenteChat.tsx` — floating chat bubble (bottom-right), slide-up panel with streaming responses
 - Security: admin-only (component returns null for limpieza role, API rejects limpieza emails with 403)
 - Tool calling: `consultar_reservas`, `consultar_propiedades`, `consultar_mantenimiento` — real-time Supabase queries via Gemini FunctionDeclaration format
-- Model: gemini-2.0-flash with system prompt in Spanish for property management context
+- Model: gemini-2.5-flash with system prompt in Spanish for property management context
 
 ## Frontend Pages
 
