@@ -10,6 +10,8 @@ import { supabase } from "../lib/supabase";
 
 const router = Router();
 
+const MAX_TOOL_ROUNDS = 3;
+
 const SYSTEM_PROMPT = `Eres el asistente virtual de Barmel, una empresa de gestión de propiedades de alquiler en Honduras. Tu nombre es "Asistente Barmel".
 
 Responde siempre en español. Sé conciso, profesional y útil.
@@ -19,7 +21,7 @@ Tienes acceso a herramientas para consultar la base de datos en tiempo real:
 - consultar_propiedades: Para ver las propiedades disponibles, sus tipos y detalles
 - consultar_mantenimiento: Para revisar reportes de mantenimiento pendientes
 
-Cuando el usuario pregunte sobre disponibilidad, ingresos, reservas o propiedades, USA las herramientas para obtener datos reales. No inventes datos.
+IMPORTANTE: Solo usa las herramientas cuando el usuario pregunte algo que requiera datos de la base de datos (reservas, propiedades, ingresos, disponibilidad, mantenimiento). Para saludos, preguntas generales o conversación casual, responde directamente SIN usar herramientas.
 
 Contexto de negocio:
 - Las propiedades son de tipo "vacacional" (alquiler corto plazo) o "mensual" (renta fija)
@@ -231,6 +233,47 @@ async function ejecutarTool(
   }
 }
 
+function extractFunctionCalls(
+  parts: Part[]
+): Array<{ name: string; args: Record<string, unknown> }> {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  for (const p of parts) {
+    if ("functionCall" in p && p.functionCall) {
+      const fc = p.functionCall as { name: string; args?: Record<string, unknown> };
+      calls.push({ name: fc.name, args: fc.args ?? {} });
+    }
+  }
+  return calls;
+}
+
+function extractText(parts: Part[]): string {
+  let text = "";
+  for (const p of parts) {
+    if ("text" in p && typeof p.text === "string") {
+      text += p.text;
+    }
+  }
+  return text;
+}
+
+function sanitizeHistory(messages: ChatMessage[]): Content[] {
+  const history: Content[] = [];
+  for (const m of messages) {
+    const role = m.role === "assistant" ? "model" : "user";
+    if (!m.content) continue;
+    const lastEntry = history[history.length - 1];
+    if (lastEntry && lastEntry.role === role) {
+      lastEntry.parts.push({ text: m.content });
+    } else {
+      history.push({ role, parts: [{ text: m.content }] });
+    }
+  }
+  if (history.length > 0 && history[0].role !== "user") {
+    history.shift();
+  }
+  return history;
+}
+
 router.post(
   "/chat",
   async (req: Request, res: Response): Promise<void> => {
@@ -292,59 +335,65 @@ router.post(
         tools: [{ functionDeclarations: toolDeclarations }],
       });
 
-      const history: Content[] = body.messages.slice(0, -1).map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
+      const allMessages = body.messages;
+      const historyMessages = allMessages.slice(0, -1);
+      const lastMessage = allMessages[allMessages.length - 1];
 
-      const lastMessage = body.messages[body.messages.length - 1];
-      if (!lastMessage) {
+      if (!lastMessage || !lastMessage.content) {
         res.write(`data: ${JSON.stringify({ error: "No message provided" })}\n\n`);
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
         return;
       }
 
+      const history = sanitizeHistory(historyMessages);
       const chat = model.startChat({ history });
 
+      let apiCalls = 0;
+      let round = 0;
+
+      console.log(`[Chat] Starting request: "${lastMessage.content.slice(0, 60)}"`);
+
       const firstResult = await chat.sendMessage(lastMessage.content);
-      const firstParts = firstResult.response.candidates?.[0]?.content?.parts ?? [];
+      apiCalls++;
+      console.log(`[Chat] API call #${apiCalls} (initial sendMessage)`);
 
-      const functionCalls = firstParts.filter(
-        (p): p is Part & { functionCall: { name: string; args: Record<string, unknown> } } =>
-          "functionCall" in p && p.functionCall !== undefined
-      );
+      let responseParts = firstResult.response.candidates?.[0]?.content?.parts ?? [];
+      let functionCalls = extractFunctionCalls(responseParts);
 
-      if (functionCalls.length > 0) {
+      while (functionCalls.length > 0 && round < MAX_TOOL_ROUNDS) {
+        round++;
+        console.log(`[Chat] Tool round ${round}/${MAX_TOOL_ROUNDS}: ${functionCalls.map((fc) => fc.name).join(", ")}`);
+
         const functionResponses: Part[] = [];
-
         for (const fc of functionCalls) {
-          const result = await ejecutarTool(
-            fc.functionCall.name,
-            fc.functionCall.args ?? {}
-          );
+          const result = await ejecutarTool(fc.name, fc.args);
           functionResponses.push({
             functionResponse: {
-              name: fc.functionCall.name,
+              name: fc.name,
               response: result,
             },
           });
         }
 
-        const secondResult = await chat.sendMessageStream(functionResponses);
+        const nextResult = await chat.sendMessage(functionResponses);
+        apiCalls++;
+        console.log(`[Chat] API call #${apiCalls} (tool response round ${round})`);
 
-        for await (const chunk of secondResult.stream) {
-          const text = chunk.text();
-          if (text) {
-            res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-          }
-        }
-      } else {
-        const text = firstResult.response.text();
-        if (text) {
-          res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-        }
+        responseParts = nextResult.response.candidates?.[0]?.content?.parts ?? [];
+        functionCalls = extractFunctionCalls(responseParts);
       }
+
+      if (functionCalls.length > 0) {
+        console.log(`[Chat] Hit max tool rounds (${MAX_TOOL_ROUNDS}), stopping`);
+      }
+
+      const finalText = extractText(responseParts);
+      if (finalText) {
+        res.write(`data: ${JSON.stringify({ content: finalText })}\n\n`);
+      }
+
+      console.log(`[Chat] Done. Total API calls: ${apiCalls}, tool rounds: ${round}`);
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
