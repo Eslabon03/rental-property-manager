@@ -218,8 +218,8 @@ interface DisponibilidadParams {
 interface CrearReservaParams {
   propiedad_nombre?: string;
   propiedad_id?: number;
-  fecha_inicio: string;
-  fecha_fin: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
   nombre_huesped?: string;
   celular_huesped?: string;
   canal_renta?: string;
