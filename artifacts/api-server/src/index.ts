@@ -8,6 +8,6 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server listening on port ${port} at 0.0.0.0`);
 });
