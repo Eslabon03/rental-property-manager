@@ -13,10 +13,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
 
 // Serve static React frontend in production
-const frontendPath = path.join(process.cwd(), "artifacts/rental-app/dist/public");
+let frontendPath = path.join(process.cwd(), "artifacts/rental-app/dist/public");
+if (process.cwd().endsWith("api-server")) {
+  frontendPath = path.join(process.cwd(), "../../artifacts/rental-app/dist/public");
+} else if (process.cwd().endsWith("Rental-Property-Manager")) {
+  frontendPath = path.join(process.cwd(), "artifacts/rental-app/dist/public");
+}
+
 app.use(express.static(frontendPath));
 
-app.get("*", (req, res) => {
+// Fallback to index.html for all frontend routes
+// Express 5 uses path-to-regexp v8 and requires /(.*) instead of *
+app.get(["/", "/(.*)"], (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
