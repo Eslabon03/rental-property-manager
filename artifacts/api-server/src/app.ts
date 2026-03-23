@@ -24,8 +24,12 @@ app.use(express.static(frontendPath));
 
 // Fallback to index.html for all frontend routes
 // Express 5 uses path-to-regexp v8 and requires /(.*) instead of *
-app.get(["/", "/(.*)"], (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  } else {
+    next();
+  }
 });
 
 export default app;
